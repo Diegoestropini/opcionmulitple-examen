@@ -115,8 +115,11 @@
     .item-actions { display: flex; gap: 8px; margin-top: 8px; }
     .mini-btn { width: auto; padding: 6px 10px; font-size: 13px; }
     .mini-btn.danger-btn { background: linear-gradient(135deg, #ef4444, #f97316); }
-    .option-btn.correct { background: rgba(16,185,129,0.18); color: #bbf7d0; border: 1px solid rgba(16,185,129,0.6); }
-    .option-btn.incorrect { background: rgba(239,68,68,0.18); color: #fecdd3; border: 1px solid rgba(239,68,68,0.5); }
+    .option-btn:disabled { opacity: 1; filter: none; }
+    .option-btn.correct,
+    .option-btn.correct:disabled { background: rgba(16,185,129,0.18); color: #bbf7d0; border: 1px solid rgba(16,185,129,0.6); }
+    .option-btn.incorrect,
+    .option-btn.incorrect:disabled { background: rgba(239,68,68,0.18); color: #fecdd3; border: 1px solid rgba(239,68,68,0.5); }
     .stats { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
     .pill.success { background: rgba(16,185,129,0.16); color: #bbf7d0; border-color: rgba(16,185,129,0.4); }
     .pill.danger { background: rgba(239,68,68,0.16); color: #fecdd3; border-color: rgba(239,68,68,0.4); }
