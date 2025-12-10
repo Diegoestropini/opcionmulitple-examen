@@ -103,6 +103,10 @@
     .mini-btn.danger-btn { background: linear-gradient(135deg, #ef4444, #f97316); }
     .option-btn.correct { background: rgba(16,185,129,0.18); color: #bbf7d0; border: 1px solid rgba(16,185,129,0.6); }
     .option-btn.incorrect { background: rgba(239,68,68,0.18); color: #fecdd3; border: 1px solid rgba(239,68,68,0.5); }
+    .stats { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
+    .pill.success { background: rgba(16,185,129,0.16); color: #bbf7d0; border-color: rgba(16,185,129,0.4); }
+    .pill.danger { background: rgba(239,68,68,0.16); color: #fecdd3; border-color: rgba(239,68,68,0.4); }
+    .pill.info { background: rgba(14,165,233,0.16); color: #bae6fd; border-color: rgba(14,165,233,0.4); }
   </style>
 </head>
 <body>
@@ -149,7 +153,10 @@
       <div class="game-area">
         <div class="row" style="justify-content: space-between;">
           <div class="status"><span class="dot"></span><span id="estadoJuego">Esperando…</span></div>
-          <div class="row">
+          <div class="row stats">
+            <div class="pill success" id="correctas">✅ 0</div>
+            <div class="pill danger" id="incorrectas">❌ 0</div>
+            <div class="pill info" id="efectividad">Efectividad: 0%</div>
             <div class="pill" id="contador">0/0</div>
             <button id="startBtn" class="ghost-btn" type="button">Empezar juego</button>
           </div>
@@ -182,6 +189,9 @@
     const opcionesJuego = document.getElementById('opcionesJuego');
     const estadoJuego = document.getElementById('estadoJuego');
     const contador = document.getElementById('contador');
+    const correctasEl = document.getElementById('correctas');
+    const incorrectasEl = document.getElementById('incorrectas');
+    const efectividadEl = document.getElementById('efectividad');
 
     let materias = [];
     let materiaActualId = '';
@@ -192,6 +202,8 @@
     let totalPreguntas = 0;
     let completadas = new Set();
     let preguntaEditando = null;
+    let correctas = 0;
+    let incorrectas = 0;
 
     const STORAGE_KEY = 'quiz-multi-choice';
 
@@ -303,6 +315,7 @@
       preguntaInput.value = '';
       construirCamposOpciones();
       contador.textContent = `${completadas.size}/${totalPreguntas || 0}`;
+      actualizarStats();
       estadoJuego.textContent = 'Esperando…';
       textoPregunta.textContent = materia ? 'Agrega preguntas y presiona "Empezar juego"' : 'Crea o selecciona una materia para empezar.';
       opcionesJuego.innerHTML = '';
@@ -339,6 +352,8 @@
       ordenPreguntas = [];
       indiceActual = 0;
       preguntaEditando = null;
+      correctas = 0;
+      incorrectas = 0;
       addQuestionBtn.textContent = 'Agregar pregunta';
       preguntaInput.value = '';
       construirCamposOpciones();
@@ -349,6 +364,7 @@
       textoPregunta.textContent = 'Agrega preguntas y presiona "Empezar juego"';
       estadoJuego.textContent = 'Esperando…';
       contador.textContent = '0/0';
+      actualizarStats();
       guardar();
       mostrarMensaje('Materia agregada');
     }
@@ -431,6 +447,9 @@
       totalPreguntas = preguntas.length;
       completadas = new Set();
       contador.textContent = `${completadas.size}/${totalPreguntas}`;
+      correctas = 0;
+      incorrectas = 0;
+      actualizarStats();
       estadoJuego.textContent = 'En progreso';
       mostrarPreguntaActual();
     }
@@ -452,6 +471,7 @@
           textoPregunta.textContent = '¡Terminaste todas las preguntas!';
           opcionesJuego.innerHTML = '';
           contador.textContent = `${completadas.size}/${totalPreguntas}`;
+          actualizarStats();
           return;
         }
       }
@@ -480,6 +500,7 @@
         btn.classList.add('correct');
         estadoJuego.textContent = '¡Correcto!';
         completadas.add(ordenPreguntas[indiceActual]);
+        correctas += 1;
       } else {
         btn.classList.add('incorrect');
         if (correctaBtn) correctaBtn.classList.add('correct');
@@ -487,9 +508,11 @@
           pendientes.push(ordenPreguntas[indiceActual]);
         }
         estadoJuego.textContent = 'Respuesta incorrecta';
+        incorrectas += 1;
       }
 
       contador.textContent = `${completadas.size}/${totalPreguntas}`;
+      actualizarStats();
       setTimeout(() => {
         indiceActual += 1;
         mostrarPreguntaActual();
@@ -518,6 +541,9 @@
       opcionesJuego.innerHTML = '';
       estadoJuego.textContent = 'Esperando…';
       contador.textContent = '0/0';
+      correctas = 0;
+      incorrectas = 0;
+      actualizarStats();
       preguntaInput.value = '';
       construirCamposOpciones();
       guardar();
@@ -549,8 +575,19 @@
       textoPregunta.textContent = 'Agrega preguntas y presiona "Empezar juego"';
       opcionesJuego.innerHTML = '';
       contador.textContent = `${completadas.size}/${totalPreguntas || 0}`;
+      correctas = 0;
+      incorrectas = 0;
+      actualizarStats();
       guardar();
       renderLista();
+    }
+
+    function actualizarStats() {
+      const totalIntentos = correctas + incorrectas;
+      const efectividad = totalIntentos ? Math.round((correctas / totalIntentos) * 100) : 0;
+      correctasEl.textContent = `✅ ${correctas}`;
+      incorrectasEl.textContent = `❌ ${incorrectas}`;
+      efectividadEl.textContent = `Efectividad: ${efectividad}%`;
     }
 
     opcionesCountInput.addEventListener('change', construirCamposOpciones);
