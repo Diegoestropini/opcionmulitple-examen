@@ -96,6 +96,13 @@
     .status .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
     .pill { padding: 6px 10px; border-radius: 999px; background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.2); font-size: 13px; }
     .row { display: flex; gap: 10px; align-items: center; }
+    .row-fill > * { flex: 1; }
+    .materia-row { display: grid; grid-template-columns: 1fr 180px; gap: 10px; }
+    .item-actions { display: flex; gap: 8px; margin-top: 8px; }
+    .mini-btn { width: auto; padding: 6px 10px; font-size: 13px; }
+    .mini-btn.danger-btn { background: linear-gradient(135deg, #ef4444, #f97316); }
+    .option-btn.correct { background: rgba(16,185,129,0.18); color: #bbf7d0; border: 1px solid rgba(16,185,129,0.6); }
+    .option-btn.incorrect { background: rgba(239,68,68,0.18); color: #fecdd3; border: 1px solid rgba(239,68,68,0.5); }
   </style>
 </head>
 <body>
@@ -103,8 +110,18 @@
     <section class="card">
       <h1>Crear preguntas</h1>
       <div class="field">
-        <label for="materia">Materia</label>
-        <input id="materia" type="text" placeholder="Ej: Historia" />
+        <label for="materiaSelect">Materia</label>
+        <div class="materia-row">
+          <select id="materiaSelect"></select>
+          <button id="addMateriaBtn" type="button" class="ghost-btn">Agregar otra materia</button>
+        </div>
+      </div>
+      <div class="field" id="nuevaMateriaField" style="display:none;">
+        <label for="materiaNombre">Nueva materia</label>
+        <div class="row row-fill">
+          <input id="materiaNombre" type="text" placeholder="Ej: Historia" />
+          <button id="guardarMateriaBtn" type="button">Guardar materia</button>
+        </div>
       </div>
       <div class="two-col">
         <div class="field">
@@ -146,7 +163,11 @@
   </div>
 
   <script>
-    const materiaInput = document.getElementById('materia');
+    const materiaSelect = document.getElementById('materiaSelect');
+    const addMateriaBtn = document.getElementById('addMateriaBtn');
+    const nuevaMateriaField = document.getElementById('nuevaMateriaField');
+    const materiaNombreInput = document.getElementById('materiaNombre');
+    const guardarMateriaBtn = document.getElementById('guardarMateriaBtn');
     const preguntaInput = document.getElementById('pregunta');
     const opcionesCountInput = document.getElementById('opcionesCount');
     const opcionesContainer = document.getElementById('opcionesContainer');
@@ -162,16 +183,20 @@
     const estadoJuego = document.getElementById('estadoJuego');
     const contador = document.getElementById('contador');
 
+    let materias = [];
+    let materiaActualId = '';
     let preguntas = [];
-    let materiaActual = '';
     let indiceActual = 0;
     let ordenPreguntas = [];
     let pendientes = [];
+    let totalPreguntas = 0;
+    let completadas = new Set();
+    let preguntaEditando = null;
 
     const STORAGE_KEY = 'quiz-multi-choice';
 
     function guardar() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ materia: materiaActual, preguntas }));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ materias, materiaActualId }));
       renderLista();
     }
 
@@ -179,26 +204,55 @@
       const data = localStorage.getItem(STORAGE_KEY);
       if (data) {
         const parsed = JSON.parse(data);
-        materiaActual = parsed.materia || '';
-        preguntas = parsed.preguntas || [];
-        materiaInput.value = materiaActual;
+        if (Array.isArray(parsed.materias)) {
+          materias = parsed.materias;
+          materiaActualId = parsed.materiaActualId || parsed.materiaActual || '';
+        } else {
+          const legacyMateria = parsed.materia || '';
+          materias = [{ id: `mat-${Date.now()}`, nombre: legacyMateria, preguntas: parsed.preguntas || [] }];
+          materiaActualId = materias[0].id;
+        }
       }
+      renderMateriaSelect();
+      seleccionarMateria(materiaActualId || materias[0]?.id || '');
       renderLista();
       renderMateriaInfo();
     }
 
+    function renderMateriaSelect() {
+      materiaSelect.innerHTML = '';
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = materias.length ? 'Selecciona una materia' : 'Crea una materia para empezar';
+      materiaSelect.appendChild(placeholder);
+      materias.forEach((m) => {
+        const opt = document.createElement('option');
+        opt.value = m.id;
+        opt.textContent = `${m.nombre || 'Sin nombre'} (${m.preguntas.length})`;
+        materiaSelect.appendChild(opt);
+      });
+      if (materiaActualId) {
+        materiaSelect.value = materiaActualId;
+      }
+    }
+
     function renderMateriaInfo() {
       materiaInfo.innerHTML = '';
-      if (!materiaActual) return;
+      const materia = obtenerMateriaActual();
+      if (!materia || !materia.nombre) return;
       const chip = document.createElement('div');
       chip.className = 'chip';
-      chip.textContent = `Materia: ${materiaActual} (${preguntas.length} preguntas)`;
+      chip.textContent = `Materia: ${materia.nombre} (${materia.preguntas.length} preguntas)`;
       materiaInfo.appendChild(chip);
     }
 
     function renderLista() {
       renderMateriaInfo();
       listaPreguntas.innerHTML = '';
+      if (!preguntas.length) {
+        listaPreguntas.innerHTML = '<p class="chip">No hay preguntas guardadas.</p>';
+        return;
+      }
       preguntas.forEach((p, idx) => {
         const card = document.createElement('div');
         card.className = 'item';
@@ -207,6 +261,19 @@
           return `<span>${i + 1}. ${o} ${correcta}</span>`;
         }).join('');
         card.innerHTML = `<strong>${idx + 1}. ${p.texto}</strong><div class="options">${opciones}</div>`;
+        const acciones = document.createElement('div');
+        acciones.className = 'item-actions';
+        const editBtn = document.createElement('button');
+        editBtn.className = 'mini-btn ghost-btn';
+        editBtn.textContent = 'Editar';
+        editBtn.onclick = () => editarPregunta(idx);
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'mini-btn danger-btn';
+        deleteBtn.textContent = 'Borrar';
+        deleteBtn.onclick = () => eliminarPregunta(idx);
+        acciones.appendChild(editBtn);
+        acciones.appendChild(deleteBtn);
+        card.appendChild(acciones);
         listaPreguntas.appendChild(card);
       });
     }
@@ -218,18 +285,88 @@
       setTimeout(() => { formMessage.style.display = 'none'; }, 2200);
     }
 
-    function construirCamposOpciones() {
-      const count = Math.min(Math.max(parseInt(opcionesCountInput.value, 10) || 0, 2), 6);
+    function obtenerMateriaActual() {
+      return materias.find((m) => m.id === materiaActualId);
+    }
+
+    function seleccionarMateria(id) {
+      materiaActualId = id;
+      const materia = obtenerMateriaActual();
+      preguntas = materia ? materia.preguntas : [];
+      totalPreguntas = preguntas.length;
+      completadas = new Set();
+      pendientes = [];
+      ordenPreguntas = [];
+      indiceActual = 0;
+      preguntaEditando = null;
+      addQuestionBtn.textContent = 'Agregar pregunta';
+      preguntaInput.value = '';
+      construirCamposOpciones();
+      contador.textContent = `${completadas.size}/${totalPreguntas || 0}`;
+      estadoJuego.textContent = 'Esperando…';
+      textoPregunta.textContent = materia ? 'Agrega preguntas y presiona "Empezar juego"' : 'Crea o selecciona una materia para empezar.';
+      opcionesJuego.innerHTML = '';
+      renderMateriaSelect();
+      renderLista();
+      renderMateriaInfo();
+      guardar();
+    }
+
+    function toggleNuevaMateria() {
+      const visible = nuevaMateriaField.style.display !== 'none';
+      nuevaMateriaField.style.display = visible ? 'none' : 'block';
+      if (!visible) {
+        materiaNombreInput.focus();
+      }
+    }
+
+    function crearNuevaMateria() {
+      const nombre = materiaNombreInput.value.trim();
+      if (!nombre) return mostrarMensaje('Ingresa el nombre de la materia', 'error');
+      if (materias.some((m) => m.nombre.toLowerCase() === nombre.toLowerCase())) {
+        return mostrarMensaje('Esa materia ya existe', 'error');
+      }
+      const id = `mat-${Date.now()}-${Math.floor(Math.random() * 1000)}`;
+      const nueva = { id, nombre, preguntas: [] };
+      materias.push(nueva);
+      materiaNombreInput.value = '';
+      nuevaMateriaField.style.display = 'none';
+      materiaActualId = id;
+      preguntas = nueva.preguntas;
+      totalPreguntas = 0;
+      completadas = new Set();
+      pendientes = [];
+      ordenPreguntas = [];
+      indiceActual = 0;
+      preguntaEditando = null;
+      addQuestionBtn.textContent = 'Agregar pregunta';
+      preguntaInput.value = '';
+      construirCamposOpciones();
+      renderMateriaSelect();
+      materiaSelect.value = id;
+      renderLista();
+      renderMateriaInfo();
+      textoPregunta.textContent = 'Agrega preguntas y presiona "Empezar juego"';
+      estadoJuego.textContent = 'Esperando…';
+      contador.textContent = '0/0';
+      guardar();
+      mostrarMensaje('Materia agregada');
+    }
+
+    function construirCamposOpciones(valores = [], correctaMarcada = 0) {
+      const count = valores.length || Math.min(Math.max(parseInt(opcionesCountInput.value, 10) || 0, 2), 6);
       opcionesContainer.innerHTML = '';
       for (let i = 0; i < count; i++) {
         const wrap = document.createElement('div');
         wrap.className = 'field';
+        const valor = valores[i] || '';
+        const checked = i === correctaMarcada ? 'checked' : '';
         wrap.innerHTML = `
           <label>Opción ${i + 1} ${i === 0 ? '(correcta por defecto)' : ''}</label>
           <div class="two-col">
-            <input type="text" data-opcion="${i}" placeholder="Texto de la opción" />
+            <input type="text" data-opcion="${i}" placeholder="Texto de la opción" value="${valor}" />
             <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
-              <input type="radio" name="correcta" value="${i}" ${i === 0 ? 'checked' : ''} />
+              <input type="radio" name="correcta" value="${i}" ${checked || (i === 0 && !valores.length ? 'checked' : '')} />
               Correcta
             </label>
           </div>`;
@@ -246,22 +383,28 @@
     }
 
     function validarPregunta() {
-      const materia = materiaInput.value.trim();
+      const materia = obtenerMateriaActual();
       const texto = preguntaInput.value.trim();
       const { opciones, correcta } = obtenerOpciones();
 
-      if (!materia) return mostrarMensaje('Ingresa la materia', 'error');
+      if (!materia || !materia.nombre) return mostrarMensaje('Selecciona o crea una materia', 'error');
       if (!texto) return mostrarMensaje('Ingresa la pregunta', 'error');
       if (opciones.some(o => !o)) return mostrarMensaje('Completa todas las opciones', 'error');
 
-      materiaActual = materia;
-      preguntas.push({ texto, opciones, correcta });
+      if (preguntaEditando !== null) {
+        preguntas[preguntaEditando] = { texto, opciones, correcta };
+        preguntaEditando = null;
+        addQuestionBtn.textContent = 'Agregar pregunta';
+        mostrarMensaje('Pregunta actualizada');
+      } else {
+        preguntas.push({ texto, opciones, correcta });
+        mostrarMensaje('Pregunta agregada');
+      }
       guardar();
       renderMateriaInfo();
       renderLista();
       preguntaInput.value = '';
       opcionesContainer.querySelectorAll('input[type="text"]').forEach(inp => inp.value = '');
-      mostrarMensaje('Pregunta agregada');
     }
 
     function barajar(array) {
@@ -274,6 +417,10 @@
     }
 
     function iniciarJuego() {
+      if (!materiaActualId) {
+        estadoJuego.textContent = 'Selecciona una materia';
+        return;
+      }
       if (!preguntas.length) {
         estadoJuego.textContent = 'Agrega preguntas primero';
         return;
@@ -281,11 +428,20 @@
       ordenPreguntas = barajar(preguntas.map((_, i) => i));
       pendientes = [];
       indiceActual = 0;
+      totalPreguntas = preguntas.length;
+      completadas = new Set();
+      contador.textContent = `${completadas.size}/${totalPreguntas}`;
       estadoJuego.textContent = 'En progreso';
       mostrarPreguntaActual();
     }
 
     function mostrarPreguntaActual() {
+      if (!ordenPreguntas.length) {
+        textoPregunta.textContent = 'Agrega preguntas y presiona "Empezar juego"';
+        opcionesJuego.innerHTML = '';
+        contador.textContent = `${completadas.size}/${totalPreguntas || preguntas.length || 0}`;
+        return;
+      }
       if (indiceActual >= ordenPreguntas.length) {
         if (pendientes.length) {
           ordenPreguntas = pendientes;
@@ -295,52 +451,116 @@
           estadoJuego.textContent = 'Completado ✅';
           textoPregunta.textContent = '¡Terminaste todas las preguntas!';
           opcionesJuego.innerHTML = '';
-          contador.textContent = `${preguntas.length}/${preguntas.length}`;
+          contador.textContent = `${completadas.size}/${totalPreguntas}`;
           return;
         }
       }
 
       const pregunta = preguntas[ordenPreguntas[indiceActual]];
       textoPregunta.textContent = pregunta.texto;
-      contador.textContent = `${indiceActual + 1 + (pendientes.length ? preguntas.length - pendientes.length - (ordenPreguntas.length - indiceActual) : 0)}/${preguntas.length}`;
+      contador.textContent = `${completadas.size}/${totalPreguntas}`;
       opcionesJuego.innerHTML = '';
       const ordenOpciones = barajar(pregunta.opciones.map((_, i) => i));
       ordenOpciones.forEach((optIndex) => {
         const btn = document.createElement('button');
         btn.className = 'option-btn';
         btn.textContent = pregunta.opciones[optIndex];
-        btn.onclick = () => validarRespuesta(optIndex === pregunta.correcta);
+        btn.dataset.esCorrecta = optIndex === pregunta.correcta ? 'true' : 'false';
+        btn.onclick = () => validarRespuesta(optIndex === pregunta.correcta, btn);
         opcionesJuego.appendChild(btn);
       });
     }
 
-    function validarRespuesta(esCorrecta) {
-      if (!esCorrecta) {
-        pendientes.push(ordenPreguntas[indiceActual]);
+    function validarRespuesta(esCorrecta, btn) {
+      const botones = Array.from(opcionesJuego.querySelectorAll('button'));
+      botones.forEach((b) => { b.disabled = true; });
+      const correctaBtn = botones.find((b) => b.dataset.esCorrecta === 'true');
+
+      if (esCorrecta) {
+        btn.classList.add('correct');
+        estadoJuego.textContent = '¡Correcto!';
+        completadas.add(ordenPreguntas[indiceActual]);
+      } else {
+        btn.classList.add('incorrect');
+        if (correctaBtn) correctaBtn.classList.add('correct');
+        if (!pendientes.includes(ordenPreguntas[indiceActual])) {
+          pendientes.push(ordenPreguntas[indiceActual]);
+        }
+        estadoJuego.textContent = 'Respuesta incorrecta';
       }
-      indiceActual += 1;
-      mostrarPreguntaActual();
+
+      contador.textContent = `${completadas.size}/${totalPreguntas}`;
+      setTimeout(() => {
+        indiceActual += 1;
+        mostrarPreguntaActual();
+      }, 900);
     }
 
     function confirmarBorrado() {
-      const seguro = confirm('¿Seguro que quieres borrar materia?');
+      const materia = obtenerMateriaActual();
+      if (!materia) return;
+      const seguro = confirm(`¿Seguro que quieres borrar la materia "${materia.nombre || 'sin nombre'}"?`);
       if (!seguro) return;
-      preguntas = [];
-      materiaActual = '';
-      materiaInput.value = '';
-      localStorage.removeItem(STORAGE_KEY);
+      materias = materias.filter((m) => m.id !== materiaActualId);
+      materiaActualId = materias[0]?.id || '';
+      preguntas = obtenerMateriaActual()?.preguntas || [];
+      totalPreguntas = preguntas.length;
+      completadas = new Set();
+      pendientes = [];
+      ordenPreguntas = [];
+      indiceActual = 0;
+      preguntaEditando = null;
+      addQuestionBtn.textContent = 'Agregar pregunta';
+      renderMateriaSelect();
       renderLista();
       renderMateriaInfo();
-      textoPregunta.textContent = 'Materia eliminada. Agrega nuevas preguntas para jugar.';
+      textoPregunta.textContent = materiaActualId ? 'Materia eliminada. Selecciona otra para jugar.' : 'Materia eliminada. Agrega nuevas preguntas para jugar.';
       opcionesJuego.innerHTML = '';
       estadoJuego.textContent = 'Esperando…';
       contador.textContent = '0/0';
+      preguntaInput.value = '';
+      construirCamposOpciones();
+      guardar();
+    }
+
+    function editarPregunta(idx) {
+      const pregunta = preguntas[idx];
+      if (!pregunta) return;
+      preguntaEditando = idx;
+      preguntaInput.value = pregunta.texto;
+      opcionesCountInput.value = pregunta.opciones.length;
+      construirCamposOpciones(pregunta.opciones, pregunta.correcta);
+      addQuestionBtn.textContent = 'Guardar cambios';
+      mostrarMensaje('Editando pregunta seleccionada');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function eliminarPregunta(idx) {
+      if (!confirm('¿Eliminar esta pregunta?')) return;
+      preguntas.splice(idx, 1);
+      totalPreguntas = preguntas.length;
+      completadas = new Set();
+      pendientes = [];
+      ordenPreguntas = [];
+      indiceActual = 0;
+      preguntaEditando = null;
+      addQuestionBtn.textContent = 'Agregar pregunta';
+      estadoJuego.textContent = 'Esperando…';
+      textoPregunta.textContent = 'Agrega preguntas y presiona "Empezar juego"';
+      opcionesJuego.innerHTML = '';
+      contador.textContent = `${completadas.size}/${totalPreguntas || 0}`;
+      guardar();
+      renderLista();
     }
 
     opcionesCountInput.addEventListener('change', construirCamposOpciones);
     addQuestionBtn.addEventListener('click', validarPregunta);
     startBtn.addEventListener('click', iniciarJuego);
     clearBtn.addEventListener('click', confirmarBorrado);
+    materiaSelect.addEventListener('change', (e) => seleccionarMateria(e.target.value));
+    addMateriaBtn.addEventListener('click', toggleNuevaMateria);
+    guardarMateriaBtn.addEventListener('click', crearNuevaMateria);
+    materiaNombreInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') crearNuevaMateria(); });
 
     construirCamposOpciones();
     cargar();
