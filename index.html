@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Juego de Adivinanza Multiple Choice</title>
+  <style>
+    :root {
+      --bg: #0f172a;
+      --panel: #1e293b;
+      --accent: #10b981;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --danger: #ef4444;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: radial-gradient(circle at 20% 20%, rgba(16,185,129,0.08), transparent 25%),
+                  radial-gradient(circle at 80% 0%, rgba(52,211,153,0.08), transparent 25%),
+                  var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      padding: 32px 16px 64px;
+    }
+    .container {
+      width: min(1100px, 100%);
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 20px;
+    }
+    @media (max-width: 980px) {
+      .container { grid-template-columns: 1fr; }
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid rgba(148,163,184,0.15);
+      border-radius: 16px;
+      box-shadow: 0 12px 40px rgba(0,0,0,0.25);
+      padding: 20px;
+    }
+    h1 { margin: 0 0 12px; font-size: 26px; }
+    h2 { margin: 0 0 10px; font-size: 20px; color: var(--muted); }
+    label { display: block; margin-bottom: 6px; color: var(--muted); font-size: 14px; }
+    input, select, button, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(148,163,184,0.25);
+      background: rgba(15,23,42,0.8);
+      color: var(--text);
+      font-size: 15px;
+    }
+    input:focus, textarea:focus, select:focus { outline: 2px solid var(--accent); }
+    .field { margin-bottom: 12px; }
+    button {
+      cursor: pointer;
+      border: none;
+      background: linear-gradient(135deg, #22c55e, #0ea5e9);
+      color: #0b1224;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      transition: transform 0.08s ease, box-shadow 0.08s ease;
+    }
+    button:hover { transform: translateY(-1px); box-shadow: 0 8px 20px rgba(14,165,233,0.25); }
+    button:active { transform: translateY(0); }
+    .ghost-btn { background: rgba(148,163,184,0.1); color: var(--text); }
+    .danger-btn { background: linear-gradient(135deg, #f43f5e, #fb7185); color: #fff; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; }
+    .chip {
+      background: rgba(148,163,184,0.12);
+      padding: 6px 10px;
+      border-radius: 999px;
+      font-size: 13px;
+      border: 1px solid rgba(148,163,184,0.2);
+    }
+    .questions-list { max-height: 360px; overflow: auto; display: grid; gap: 10px; }
+    .item {
+      border: 1px solid rgba(148,163,184,0.2);
+      border-radius: 12px;
+      padding: 10px 12px;
+      background: rgba(15,23,42,0.6);
+    }
+    .item strong { display: block; margin-bottom: 4px; }
+    .options { display: grid; gap: 4px; color: var(--muted); font-size: 14px; }
+    .badge { padding: 2px 8px; background: rgba(16,185,129,0.14); color: #34d399; border-radius: 999px; font-size: 12px; margin-left: 6px; }
+    .game-area { display: grid; gap: 16px; }
+    .question-box { border: 1px solid rgba(148,163,184,0.2); border-radius: 14px; padding: 16px; background: rgba(15,23,42,0.7); }
+    .question-text { font-size: 18px; margin-bottom: 12px; }
+    .option-btn { width: 100%; text-align: left; margin-bottom: 10px; background: rgba(148,163,184,0.08); color: var(--text); }
+    .status { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+    .status .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
+    .pill { padding: 6px 10px; border-radius: 999px; background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.2); font-size: 13px; }
+    .row { display: flex; gap: 10px; align-items: center; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <section class="card">
+      <h1>Crear preguntas</h1>
+      <div class="field">
+        <label for="materia">Materia</label>
+        <input id="materia" type="text" placeholder="Ej: Historia" />
+      </div>
+      <div class="two-col">
+        <div class="field">
+          <label for="pregunta">Pregunta</label>
+          <input id="pregunta" type="text" placeholder="Escribe la pregunta" />
+        </div>
+        <div class="field">
+          <label for="opcionesCount">Cantidad de opciones</label>
+          <input id="opcionesCount" type="number" min="2" max="6" value="4" />
+        </div>
+      </div>
+      <div id="opcionesContainer" class="field"></div>
+      <div class="two-col">
+        <button id="addQuestionBtn">Agregar pregunta</button>
+        <button id="clearBtn" class="danger-btn" type="button">Eliminar materia</button>
+      </div>
+      <p id="formMessage" class="chip" style="display:none;"></p>
+      <h2>Preguntas guardadas</h2>
+      <div class="chips" id="materiaInfo"></div>
+      <div class="questions-list" id="listaPreguntas"></div>
+    </section>
+
+    <section class="card">
+      <h1>Jugar</h1>
+      <div class="game-area">
+        <div class="row" style="justify-content: space-between;">
+          <div class="status"><span class="dot"></span><span id="estadoJuego">Esperando…</span></div>
+          <div class="row">
+            <div class="pill" id="contador">0/0</div>
+            <button id="startBtn" class="ghost-btn" type="button">Empezar juego</button>
+          </div>
+        </div>
+        <div class="question-box">
+          <div class="question-text" id="textoPregunta">Agrega preguntas y presiona "Empezar juego"</div>
+          <div id="opcionesJuego"></div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const materiaInput = document.getElementById('materia');
+    const preguntaInput = document.getElementById('pregunta');
+    const opcionesCountInput = document.getElementById('opcionesCount');
+    const opcionesContainer = document.getElementById('opcionesContainer');
+    const addQuestionBtn = document.getElementById('addQuestionBtn');
+    const startBtn = document.getElementById('startBtn');
+    const listaPreguntas = document.getElementById('listaPreguntas');
+    const materiaInfo = document.getElementById('materiaInfo');
+    const formMessage = document.getElementById('formMessage');
+    const clearBtn = document.getElementById('clearBtn');
+
+    const textoPregunta = document.getElementById('textoPregunta');
+    const opcionesJuego = document.getElementById('opcionesJuego');
+    const estadoJuego = document.getElementById('estadoJuego');
+    const contador = document.getElementById('contador');
+
+    let preguntas = [];
+    let materiaActual = '';
+    let indiceActual = 0;
+    let ordenPreguntas = [];
+    let pendientes = [];
+
+    const STORAGE_KEY = 'quiz-multi-choice';
+
+    function guardar() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ materia: materiaActual, preguntas }));
+      renderLista();
+    }
+
+    function cargar() {
+      const data = localStorage.getItem(STORAGE_KEY);
+      if (data) {
+        const parsed = JSON.parse(data);
+        materiaActual = parsed.materia || '';
+        preguntas = parsed.preguntas || [];
+        materiaInput.value = materiaActual;
+      }
+      renderLista();
+      renderMateriaInfo();
+    }
+
+    function renderMateriaInfo() {
+      materiaInfo.innerHTML = '';
+      if (!materiaActual) return;
+      const chip = document.createElement('div');
+      chip.className = 'chip';
+      chip.textContent = `Materia: ${materiaActual} (${preguntas.length} preguntas)`;
+      materiaInfo.appendChild(chip);
+    }
+
+    function renderLista() {
+      renderMateriaInfo();
+      listaPreguntas.innerHTML = '';
+      preguntas.forEach((p, idx) => {
+        const card = document.createElement('div');
+        card.className = 'item';
+        const opciones = p.opciones.map((o, i) => {
+          const correcta = i === p.correcta ? '<span class="badge">Correcta</span>' : '';
+          return `<span>${i + 1}. ${o} ${correcta}</span>`;
+        }).join('');
+        card.innerHTML = `<strong>${idx + 1}. ${p.texto}</strong><div class="options">${opciones}</div>`;
+        listaPreguntas.appendChild(card);
+      });
+    }
+
+    function mostrarMensaje(texto, tipo = 'ok') {
+      formMessage.style.display = 'block';
+      formMessage.textContent = texto;
+      formMessage.style.color = tipo === 'ok' ? '#34d399' : '#f87171';
+      setTimeout(() => { formMessage.style.display = 'none'; }, 2200);
+    }
+
+    function construirCamposOpciones() {
+      const count = Math.min(Math.max(parseInt(opcionesCountInput.value, 10) || 0, 2), 6);
+      opcionesContainer.innerHTML = '';
+      for (let i = 0; i < count; i++) {
+        const wrap = document.createElement('div');
+        wrap.className = 'field';
+        wrap.innerHTML = `
+          <label>Opción ${i + 1} ${i === 0 ? '(correcta por defecto)' : ''}</label>
+          <div class="two-col">
+            <input type="text" data-opcion="${i}" placeholder="Texto de la opción" />
+            <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+              <input type="radio" name="correcta" value="${i}" ${i === 0 ? 'checked' : ''} />
+              Correcta
+            </label>
+          </div>`;
+        opcionesContainer.appendChild(wrap);
+      }
+    }
+
+    function obtenerOpciones() {
+      const inputs = opcionesContainer.querySelectorAll('input[type="text"]');
+      const opciones = [];
+      inputs.forEach((inp) => opciones.push(inp.value.trim()));
+      const correcta = parseInt(opcionesContainer.querySelector('input[type="radio"]:checked')?.value || '0', 10);
+      return { opciones, correcta };
+    }
+
+    function validarPregunta() {
+      const materia = materiaInput.value.trim();
+      const texto = preguntaInput.value.trim();
+      const { opciones, correcta } = obtenerOpciones();
+
+      if (!materia) return mostrarMensaje('Ingresa la materia', 'error');
+      if (!texto) return mostrarMensaje('Ingresa la pregunta', 'error');
+      if (opciones.some(o => !o)) return mostrarMensaje('Completa todas las opciones', 'error');
+
+      materiaActual = materia;
+      preguntas.push({ texto, opciones, correcta });
+      guardar();
+      renderMateriaInfo();
+      renderLista();
+      preguntaInput.value = '';
+      opcionesContainer.querySelectorAll('input[type="text"]').forEach(inp => inp.value = '');
+      mostrarMensaje('Pregunta agregada');
+    }
+
+    function barajar(array) {
+      const arr = [...array];
+      for (let i = arr.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+      }
+      return arr;
+    }
+
+    function iniciarJuego() {
+      if (!preguntas.length) {
+        estadoJuego.textContent = 'Agrega preguntas primero';
+        return;
+      }
+      ordenPreguntas = barajar(preguntas.map((_, i) => i));
+      pendientes = [];
+      indiceActual = 0;
+      estadoJuego.textContent = 'En progreso';
+      mostrarPreguntaActual();
+    }
+
+    function mostrarPreguntaActual() {
+      if (indiceActual >= ordenPreguntas.length) {
+        if (pendientes.length) {
+          ordenPreguntas = pendientes;
+          pendientes = [];
+          indiceActual = 0;
+        } else {
+          estadoJuego.textContent = 'Completado ✅';
+          textoPregunta.textContent = '¡Terminaste todas las preguntas!';
+          opcionesJuego.innerHTML = '';
+          contador.textContent = `${preguntas.length}/${preguntas.length}`;
+          return;
+        }
+      }
+
+      const pregunta = preguntas[ordenPreguntas[indiceActual]];
+      textoPregunta.textContent = pregunta.texto;
+      contador.textContent = `${indiceActual + 1 + (pendientes.length ? preguntas.length - pendientes.length - (ordenPreguntas.length - indiceActual) : 0)}/${preguntas.length}`;
+      opcionesJuego.innerHTML = '';
+      const ordenOpciones = barajar(pregunta.opciones.map((_, i) => i));
+      ordenOpciones.forEach((optIndex) => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.textContent = pregunta.opciones[optIndex];
+        btn.onclick = () => validarRespuesta(optIndex === pregunta.correcta);
+        opcionesJuego.appendChild(btn);
+      });
+    }
+
+    function validarRespuesta(esCorrecta) {
+      if (!esCorrecta) {
+        pendientes.push(ordenPreguntas[indiceActual]);
+      }
+      indiceActual += 1;
+      mostrarPreguntaActual();
+    }
+
+    function confirmarBorrado() {
+      const seguro = confirm('¿Seguro que quieres borrar materia?');
+      if (!seguro) return;
+      preguntas = [];
+      materiaActual = '';
+      materiaInput.value = '';
+      localStorage.removeItem(STORAGE_KEY);
+      renderLista();
+      renderMateriaInfo();
+      textoPregunta.textContent = 'Materia eliminada. Agrega nuevas preguntas para jugar.';
+      opcionesJuego.innerHTML = '';
+      estadoJuego.textContent = 'Esperando…';
+      contador.textContent = '0/0';
+    }
+
+    opcionesCountInput.addEventListener('change', construirCamposOpciones);
+    addQuestionBtn.addEventListener('click', validarPregunta);
+    startBtn.addEventListener('click', iniciarJuego);
+    clearBtn.addEventListener('click', confirmarBorrado);
+
+    construirCamposOpciones();
+    cargar();
+  </script>
+</body>
+</html>
