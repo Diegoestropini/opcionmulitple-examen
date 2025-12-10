@@ -99,9 +99,13 @@
     .options { display: grid; gap: 4px; color: var(--muted); font-size: 14px; }
     .badge { padding: 2px 8px; background: rgba(16,185,129,0.14); color: #34d399; border-radius: 999px; font-size: 12px; margin-left: 6px; }
     .game-area { display: grid; gap: 16px; }
-    .question-box { border: 1px solid rgba(148,163,184,0.2); border-radius: 14px; padding: 16px; background: rgba(15,23,42,0.7); }
-    .question-text { font-size: 18px; margin-bottom: 12px; }
-    .option-btn { width: 100%; text-align: left; margin-bottom: 10px; background: rgba(148,163,184,0.08); color: var(--text); }
+    .question-box { border: 1px solid rgba(148,163,184,0.2); border-radius: 14px; padding: 16px; background: rgba(15,23,42,0.7); transition: border-color 0.3s ease, box-shadow 0.3s ease; }
+    .question-box .question-text { font-size: 18px; margin-bottom: 12px; transition: color 0.3s ease, text-shadow 0.3s ease; }
+    .question-box .option-btn { width: 100%; text-align: left; margin-bottom: 10px; background: rgba(148,163,184,0.08); color: var(--text); transition: background 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease; }
+    .question-box.is-active { border-color: rgba(129,140,248,0.4); box-shadow: 0 12px 35px rgba(99,102,241,0.25); }
+    .question-box.is-active .question-text { color: #fef08a; text-shadow: 0 2px 12px rgba(248,250,252,0.15); }
+    .question-box.is-active .option-btn { background: linear-gradient(135deg, rgba(14,165,233,0.18), rgba(236,72,153,0.18)); border: 1px solid rgba(14,165,233,0.4); color: #e0f2fe; box-shadow: 0 10px 30px rgba(99,102,241,0.15); }
+    .question-box.is-active .option-btn:hover { background: linear-gradient(135deg, rgba(14,165,233,0.28), rgba(236,72,153,0.28)); border-color: rgba(236,72,153,0.55); color: #fff; box-shadow: 0 14px 38px rgba(236,72,153,0.2); }
     .status { display: flex; align-items: center; gap: 8px; color: var(--muted); }
     .status .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); }
     .pill { padding: 6px 10px; border-radius: 999px; background: rgba(148,163,184,0.12); border: 1px solid rgba(148,163,184,0.2); font-size: 13px; }
@@ -178,7 +182,7 @@
             <button id="startBtn" class="ghost-btn" type="button">Empezar juego</button>
           </div>
         </div>
-        <div class="question-box">
+        <div class="question-box" id="questionBox">
           <div class="question-text" id="textoPregunta">Agrega preguntas y presiona "Empezar juego"</div>
           <div id="opcionesJuego"></div>
         </div>
@@ -210,6 +214,7 @@
     const materiaInfo = document.getElementById('materiaInfo');
     const formMessage = document.getElementById('formMessage');
     const clearBtn = document.getElementById('clearBtn');
+    const questionBox = document.getElementById('questionBox');
 
     const textoPregunta = document.getElementById('textoPregunta');
     const opcionesJuego = document.getElementById('opcionesJuego');
@@ -240,6 +245,10 @@
     function guardar() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify({ materias, materiaActualId }));
       renderLista();
+    }
+
+    function setPreguntaActiva(activa) {
+      questionBox?.classList.toggle('is-active', Boolean(activa));
     }
 
     function cargar() {
@@ -349,6 +358,7 @@
       estadoJuego.textContent = 'Esperando…';
       textoPregunta.textContent = materia ? 'Agrega preguntas y presiona "Empezar juego"' : 'Crea o selecciona una materia para empezar.';
       opcionesJuego.innerHTML = '';
+      setPreguntaActiva(false);
       renderMateriaSelect();
       renderLista();
       renderMateriaInfo();
@@ -484,6 +494,7 @@
       reiniciarErrores();
       actualizarStats();
       estadoJuego.textContent = 'En progreso';
+      setPreguntaActiva(true);
       mostrarPreguntaActual();
     }
 
@@ -492,6 +503,7 @@
         textoPregunta.textContent = 'Agrega preguntas y presiona "Empezar juego"';
         opcionesJuego.innerHTML = '';
         contador.textContent = `${completadas.size}/${totalPreguntas || preguntas.length || 0}`;
+        setPreguntaActiva(false);
         return;
       }
       if (indiceActual >= ordenPreguntas.length) {
@@ -505,11 +517,13 @@
           opcionesJuego.innerHTML = '';
           contador.textContent = `${completadas.size}/${totalPreguntas}`;
           actualizarStats();
+          setPreguntaActiva(false);
           return;
         }
       }
 
       const pregunta = preguntas[ordenPreguntas[indiceActual]];
+      setPreguntaActiva(true);
       textoPregunta.textContent = pregunta.texto;
       contador.textContent = `${completadas.size}/${totalPreguntas}`;
       opcionesJuego.innerHTML = '';
@@ -614,6 +628,7 @@
       incorrectas = 0;
       actualizarStats();
       reiniciarErrores();
+      setPreguntaActiva(false);
       guardar();
       renderLista();
     }
