@@ -131,6 +131,33 @@
     .error-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2); border-radius: 10px; padding: 10px 12px; }
     .error-text { margin: 0; font-size: 14px; color: #fecdd3; }
     .error-count { background: rgba(239,68,68,0.2); color: #fecdd3; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(248,113,113,0.35); font-weight: 700; }
+    .error-item.is-clickable { cursor: pointer; transition: transform 0.08s ease, border-color 0.1s ease, box-shadow 0.1s ease; }
+    .error-item.is-clickable:hover { transform: translateY(-1px); border-color: rgba(248,113,113,0.35); box-shadow: 0 8px 20px rgba(239,68,68,0.18); }
+    .modal {
+      position: fixed;
+      inset: 0;
+      display: none;
+      align-items: center;
+      justify-content: center;
+      background: rgba(15,23,42,0.7);
+      backdrop-filter: blur(4px);
+      padding: 18px;
+      z-index: 50;
+    }
+    .modal.is-open { display: flex; }
+    .modal-content {
+      background: var(--panel);
+      border: 1px solid rgba(148,163,184,0.25);
+      border-radius: 16px;
+      padding: 18px;
+      width: min(520px, 100%);
+      box-shadow: 0 14px 40px rgba(0,0,0,0.35);
+    }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 12px; }
+    .modal-question { font-size: 17px; margin: 0 0 12px; }
+    .modal-options { display: grid; gap: 8px; }
+    .modal-option { padding: 10px 12px; border-radius: 12px; background: rgba(148,163,184,0.08); border: 1px solid rgba(148,163,184,0.2); }
+    .modal-option.correcta { background: rgba(16,185,129,0.14); border-color: rgba(16,185,129,0.35); color: #bbf7d0; }
   </style>
 </head>
 <body>
@@ -198,6 +225,16 @@
             <p class="chip">Aún no hay respuestas incorrectas.</p>
           </div>
         </div>
+        <div id="detalleModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitulo" aria-describedby="modalPregunta">
+          <div class="modal-content">
+            <div class="modal-header">
+              <h3 id="modalTitulo" class="errores-title" style="margin:0;">Pregunta respondida incorrectamente</h3>
+              <button id="cerrarModalBtn" type="button" class="ghost-btn mini-btn">Cerrar</button>
+            </div>
+            <p id="modalPregunta" class="modal-question"></p>
+            <div id="modalOpciones" class="modal-options"></div>
+          </div>
+        </div>
       </div>
     </section>
   </div>
@@ -229,6 +266,10 @@
     const erroresContador = document.getElementById('erroresContador');
     const erroresContainer = document.getElementById('erroresContainer');
     const erroresLista = document.getElementById('erroresLista');
+    const detalleModal = document.getElementById('detalleModal');
+    const modalPregunta = document.getElementById('modalPregunta');
+    const modalOpciones = document.getElementById('modalOpciones');
+    const cerrarModalBtn = document.getElementById('cerrarModalBtn');
 
     let materias = [];
     let materiaActualId = '';
@@ -652,9 +693,42 @@
     function registrarError(preguntaIdx) {
       const pregunta = preguntas[preguntaIdx];
       if (!pregunta) return;
-      const registroActual = erroresPregunta[preguntaIdx] || { texto: pregunta.texto, conteo: 0 };
+      const registroActual = erroresPregunta[preguntaIdx] || {
+        texto: pregunta.texto,
+        conteo: 0,
+        opciones: pregunta.opciones,
+        correcta: pregunta.correcta,
+      };
       erroresPregunta[preguntaIdx] = { ...registroActual, conteo: registroActual.conteo + 1 };
       renderErrores();
+    }
+
+    function cerrarModalDetalle() {
+      detalleModal.classList.remove('is-open');
+      document.body.style.overflow = '';
+    }
+
+    function mostrarDetalleError(info) {
+      if (!info) return;
+      modalPregunta.textContent = info.texto || 'Pregunta no disponible';
+      modalOpciones.innerHTML = '';
+
+      if (Array.isArray(info.opciones) && info.opciones.length) {
+        info.opciones.forEach((opcion, idx) => {
+          const opcionEl = document.createElement('div');
+          opcionEl.className = `modal-option ${idx === info.correcta ? 'correcta' : ''}`;
+          opcionEl.textContent = `${idx + 1}. ${opcion}`;
+          modalOpciones.appendChild(opcionEl);
+        });
+      } else {
+        const fallback = document.createElement('p');
+        fallback.className = 'chip';
+        fallback.textContent = 'No hay más detalles de esta pregunta.';
+        modalOpciones.appendChild(fallback);
+      }
+
+      detalleModal.classList.add('is-open');
+      document.body.style.overflow = 'hidden';
     }
 
     function renderErrores() {
@@ -673,7 +747,9 @@
         .sort(([, a], [, b]) => b.conteo - a.conteo)
         .forEach(([, info]) => {
           const item = document.createElement('div');
-          item.className = 'error-item';
+          item.className = 'error-item is-clickable';
+          item.setAttribute('role', 'button');
+          item.setAttribute('tabindex', '0');
           const texto = document.createElement('p');
           texto.className = 'error-text';
           texto.textContent = info.texto;
@@ -682,6 +758,13 @@
           conteo.textContent = `${info.conteo}×`;
           item.appendChild(texto);
           item.appendChild(conteo);
+          item.addEventListener('click', () => mostrarDetalleError(info));
+          item.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              mostrarDetalleError(info);
+            }
+          });
           erroresLista.appendChild(item);
         });
     }
@@ -694,6 +777,9 @@
     addMateriaBtn.addEventListener('click', toggleNuevaMateria);
     guardarMateriaBtn.addEventListener('click', crearNuevaMateria);
     materiaNombreInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') crearNuevaMateria(); });
+    cerrarModalBtn.addEventListener('click', cerrarModalDetalle);
+    detalleModal.addEventListener('click', (e) => { if (e.target === detalleModal) cerrarModalDetalle(); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape') cerrarModalDetalle(); });
 
     construirCamposOpciones();
     cargar();
