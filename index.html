@@ -107,6 +107,13 @@
     .pill.success { background: rgba(16,185,129,0.16); color: #bbf7d0; border-color: rgba(16,185,129,0.4); }
     .pill.danger { background: rgba(239,68,68,0.16); color: #fecdd3; border-color: rgba(239,68,68,0.4); }
     .pill.info { background: rgba(14,165,233,0.16); color: #bae6fd; border-color: rgba(14,165,233,0.4); }
+    .errores-panel { border: 1px solid rgba(148,163,184,0.2); border-radius: 14px; padding: 14px; background: rgba(15,23,42,0.7); display: grid; gap: 8px; }
+    .errores-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .errores-title { margin: 0; font-size: 16px; color: var(--muted); }
+    .errores-list { display: grid; gap: 8px; }
+    .error-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; background: rgba(248,113,113,0.08); border: 1px solid rgba(248,113,113,0.2); border-radius: 10px; padding: 10px 12px; }
+    .error-text { margin: 0; font-size: 14px; color: #fecdd3; }
+    .error-count { background: rgba(239,68,68,0.2); color: #fecdd3; padding: 4px 10px; border-radius: 999px; border: 1px solid rgba(248,113,113,0.35); font-weight: 700; }
   </style>
 </head>
 <body>
@@ -165,6 +172,15 @@
           <div class="question-text" id="textoPregunta">Agrega preguntas y presiona "Empezar juego"</div>
           <div id="opcionesJuego"></div>
         </div>
+        <div class="errores-panel" id="erroresContainer">
+          <div class="errores-header">
+            <h3 class="errores-title">Preguntas respondidas incorrectamente</h3>
+            <div class="pill danger errores-count" id="erroresContador">0 errores</div>
+          </div>
+          <div id="erroresLista" class="errores-list">
+            <p class="chip">Aún no hay respuestas incorrectas.</p>
+          </div>
+        </div>
       </div>
     </section>
   </div>
@@ -192,6 +208,9 @@
     const correctasEl = document.getElementById('correctas');
     const incorrectasEl = document.getElementById('incorrectas');
     const efectividadEl = document.getElementById('efectividad');
+    const erroresContador = document.getElementById('erroresContador');
+    const erroresContainer = document.getElementById('erroresContainer');
+    const erroresLista = document.getElementById('erroresLista');
 
     let materias = [];
     let materiaActualId = '';
@@ -204,6 +223,7 @@
     let preguntaEditando = null;
     let correctas = 0;
     let incorrectas = 0;
+    let erroresPregunta = {};
 
     const STORAGE_KEY = 'quiz-multi-choice';
 
@@ -323,6 +343,7 @@
       renderLista();
       renderMateriaInfo();
       guardar();
+      reiniciarErrores();
     }
 
     function toggleNuevaMateria() {
@@ -365,6 +386,7 @@
       estadoJuego.textContent = 'Esperando…';
       contador.textContent = '0/0';
       actualizarStats();
+      reiniciarErrores();
       guardar();
       mostrarMensaje('Materia agregada');
     }
@@ -449,6 +471,7 @@
       contador.textContent = `${completadas.size}/${totalPreguntas}`;
       correctas = 0;
       incorrectas = 0;
+      reiniciarErrores();
       actualizarStats();
       estadoJuego.textContent = 'En progreso';
       mostrarPreguntaActual();
@@ -509,6 +532,7 @@
         }
         estadoJuego.textContent = 'Respuesta incorrecta';
         incorrectas += 1;
+        registrarError(ordenPreguntas[indiceActual]);
       }
 
       contador.textContent = `${completadas.size}/${totalPreguntas}`;
@@ -544,6 +568,7 @@
       correctas = 0;
       incorrectas = 0;
       actualizarStats();
+      reiniciarErrores();
       preguntaInput.value = '';
       construirCamposOpciones();
       guardar();
@@ -578,6 +603,7 @@
       correctas = 0;
       incorrectas = 0;
       actualizarStats();
+      reiniciarErrores();
       guardar();
       renderLista();
     }
@@ -588,6 +614,48 @@
       correctasEl.textContent = `✅ ${correctas}`;
       incorrectasEl.textContent = `❌ ${incorrectas}`;
       efectividadEl.textContent = `Efectividad: ${efectividad}%`;
+    }
+
+    function reiniciarErrores() {
+      erroresPregunta = {};
+      renderErrores();
+    }
+
+    function registrarError(preguntaIdx) {
+      const pregunta = preguntas[preguntaIdx];
+      if (!pregunta) return;
+      const registroActual = erroresPregunta[preguntaIdx] || { texto: pregunta.texto, conteo: 0 };
+      erroresPregunta[preguntaIdx] = { ...registroActual, conteo: registroActual.conteo + 1 };
+      renderErrores();
+    }
+
+    function renderErrores() {
+      erroresLista.innerHTML = '';
+      const entradas = Object.entries(erroresPregunta);
+      if (!entradas.length) {
+        erroresLista.innerHTML = '<p class="chip">Aún no hay respuestas incorrectas.</p>';
+        erroresContador.textContent = '0 errores';
+        return;
+      }
+
+      const totalErrores = entradas.reduce((acc, [, info]) => acc + info.conteo, 0);
+      erroresContador.textContent = `${totalErrores} ${totalErrores === 1 ? 'error' : 'errores'}`;
+
+      entradas
+        .sort(([, a], [, b]) => b.conteo - a.conteo)
+        .forEach(([, info]) => {
+          const item = document.createElement('div');
+          item.className = 'error-item';
+          const texto = document.createElement('p');
+          texto.className = 'error-text';
+          texto.textContent = info.texto;
+          const conteo = document.createElement('div');
+          conteo.className = 'error-count';
+          conteo.textContent = `${info.conteo}×`;
+          item.appendChild(texto);
+          item.appendChild(conteo);
+          erroresLista.appendChild(item);
+        });
     }
 
     opcionesCountInput.addEventListener('change', construirCamposOpciones);
