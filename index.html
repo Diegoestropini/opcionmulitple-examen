@@ -283,6 +283,7 @@
     let correctas = 0;
     let incorrectas = 0;
     let erroresPregunta = {};
+    let ordenErrorCronologico = 0;
 
     const STORAGE_KEY = 'quiz-multi-choice';
 
@@ -687,6 +688,7 @@
 
     function reiniciarErrores() {
       erroresPregunta = {};
+      ordenErrorCronologico = 0;
       renderErrores();
     }
 
@@ -698,6 +700,7 @@
         conteo: 0,
         opciones: pregunta.opciones,
         correcta: pregunta.correcta,
+        ordenCronologico: ordenErrorCronologico++,
       };
       erroresPregunta[preguntaIdx] = { ...registroActual, conteo: registroActual.conteo + 1 };
       renderErrores();
@@ -744,7 +747,7 @@
       erroresContador.textContent = `${totalErrores} ${totalErrores === 1 ? 'error' : 'errores'}`;
 
       entradas
-        .sort(([, a], [, b]) => b.conteo - a.conteo)
+        .sort(([, a], [, b]) => b.ordenCronologico - a.ordenCronologico)
         .forEach(([, info]) => {
           const item = document.createElement('div');
           item.className = 'error-item is-clickable';
