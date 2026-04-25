@@ -932,6 +932,15 @@
       questionBox?.classList.toggle('is-active', Boolean(activa));
     }
 
+    function escapeHtml(valor) {
+      return String(valor)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
     function cargar() {
       const data = localStorage.getItem(STORAGE_KEY);
       if (data) {
@@ -988,11 +997,23 @@
       preguntas.forEach((p, idx) => {
         const card = document.createElement('div');
         card.className = 'item';
-        const opciones = p.opciones.map((o, i) => {
-          const correcta = i === p.correcta ? '<span class="badge">Correcta</span>' : '';
-          return `<span>${i + 1}. ${o} ${correcta}</span>`;
-        }).join('');
-        card.innerHTML = `<strong>${idx + 1}. ${p.texto}</strong><div class="options">${opciones}</div>`;
+        const titulo = document.createElement('strong');
+        titulo.textContent = `${idx + 1}. ${p.texto}`;
+        const opciones = document.createElement('div');
+        opciones.className = 'options';
+        p.opciones.forEach((o, i) => {
+          const opcion = document.createElement('span');
+          opcion.textContent = `${i + 1}. ${o} `;
+          if (i === p.correcta) {
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.textContent = 'Correcta';
+            opcion.appendChild(badge);
+          }
+          opciones.appendChild(opcion);
+        });
+        card.appendChild(titulo);
+        card.appendChild(opciones);
         const acciones = document.createElement('div');
         acciones.className = 'item-actions';
         const editBtn = document.createElement('button');
@@ -1098,7 +1119,7 @@
       for (let i = 0; i < count; i++) {
         const wrap = document.createElement('div');
         wrap.className = 'field';
-        const valor = valores[i] || '';
+        const valor = escapeHtml(valores[i] || '');
         const checked = i === correctaMarcada ? 'checked' : '';
         wrap.innerHTML = `
           <label>Opción ${i + 1} ${i === 0 ? '(correcta por defecto)' : ''}</label>
