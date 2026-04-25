@@ -3,6 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link rel="icon" href="data:," />
   <title>Juego de Adivinanza Multiple Choice</title>
   <style>
     :root {
@@ -60,11 +61,34 @@
     }
 
     .card {
-      background: linear-gradient(180deg, rgba(22, 36, 62, 0.92), rgba(12, 24, 44, 0.92));
+      background: linear-gradient(180deg, rgba(20, 33, 55, 0.94), rgba(12, 22, 39, 0.96));
       border: 1px solid var(--line);
       border-radius: calc(var(--radius) + 2px);
       box-shadow: var(--shadow);
       padding: 22px;
+    }
+
+    .creator-card {
+      background: linear-gradient(180deg, rgba(17, 28, 49, 0.9), rgba(10, 20, 36, 0.94));
+    }
+
+    .game-card {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .game-card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: linear-gradient(90deg, rgba(14, 165, 233, 0.12), transparent 36%, rgba(34, 197, 94, 0.08));
+      opacity: 0.65;
+    }
+
+    .game-card > * {
+      position: relative;
+      z-index: 1;
     }
 
     .creator-header {
@@ -182,7 +206,7 @@
     button {
       cursor: pointer;
       border-color: rgba(34, 197, 94, 0.4);
-      background: linear-gradient(135deg, rgba(34, 197, 94, 0.95), rgba(14, 165, 233, 0.92));
+      background: linear-gradient(135deg, rgba(34, 197, 94, 0.96), rgba(6, 182, 212, 0.92));
       color: #07101d;
       font-weight: 700;
       letter-spacing: 0.2px;
@@ -207,7 +231,7 @@
       min-width: 132px;
       padding-inline: 14px;
       border: 1px solid rgba(251, 191, 36, 0.34);
-      background: linear-gradient(135deg, #facc15, #fb923c);
+      background: linear-gradient(135deg, #fde047, #fb923c);
       color: #111827;
       text-transform: uppercase;
       letter-spacing: 0.45px;
@@ -255,11 +279,20 @@
 
     .chip {
       border: 1px solid var(--line);
-      border-radius: 999px;
+      border-radius: 10px;
       background: rgba(148, 163, 184, 0.1);
       padding: 6px 11px;
       font-size: 0.8rem;
       color: #d2ddec;
+    }
+
+    .empty-state {
+      border: 1px dashed rgba(148, 163, 184, 0.32);
+      border-radius: 12px;
+      background: rgba(148, 163, 184, 0.07);
+      color: var(--muted);
+      padding: 14px;
+      text-align: center;
     }
 
     .questions-list {
@@ -273,21 +306,38 @@
     .item {
       border: 1px solid var(--line);
       border-radius: 12px;
-      padding: 12px;
-      background: rgba(13, 22, 41, 0.72);
+      padding: 13px;
+      background: rgba(13, 22, 41, 0.62);
+      transition: border-color 0.16s ease, background-color 0.16s ease;
+    }
+
+    .item:hover {
+      border-color: rgba(148, 163, 184, 0.4);
+      background: rgba(16, 28, 50, 0.78);
     }
 
     .item strong {
       display: block;
-      margin-bottom: 6px;
+      margin-bottom: 9px;
       font-size: 0.95rem;
+      line-height: 1.36;
     }
 
     .options {
       display: grid;
-      gap: 6px;
+      gap: 7px;
       color: var(--muted);
       font-size: 0.88rem;
+    }
+
+    .options span {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      border-radius: 8px;
+      padding: 4px 7px;
+      background: rgba(148, 163, 184, 0.06);
     }
 
     .badge {
@@ -306,24 +356,32 @@
       gap: 16px;
     }
 
+    .game-topbar {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) auto;
+      align-items: start;
+      gap: 12px;
+      padding-bottom: 2px;
+    }
+
     .question-box {
       border: 1px solid var(--line);
       border-radius: var(--radius);
       padding: 18px;
-      background: linear-gradient(180deg, rgba(13, 22, 41, 0.76), rgba(10, 19, 35, 0.76));
+      background: linear-gradient(180deg, rgba(9, 18, 34, 0.84), rgba(10, 18, 32, 0.9));
       transition: border-color 0.2s ease, box-shadow 0.2s ease;
     }
 
     .question-box .question-text {
       margin-bottom: 14px;
-      font-size: 1.08rem;
-      line-height: 1.45;
-      color: #66f2ff;
-      border: 1px solid rgba(34, 211, 238, 0.4);
-      border-radius: 10px;
-      padding: 10px 12px;
-      background: linear-gradient(120deg, rgba(6, 182, 212, 0.16), rgba(217, 70, 239, 0.16));
-      text-shadow: 0 0 8px rgba(34, 211, 238, 0.35), 0 0 16px rgba(217, 70, 239, 0.25);
+      font-size: clamp(1.04rem, 0.98rem + 0.25vw, 1.18rem);
+      line-height: 1.5;
+      color: #edf6ff;
+      border: 1px solid rgba(125, 211, 252, 0.26);
+      border-radius: 12px;
+      padding: 14px 15px;
+      background: rgba(14, 165, 233, 0.08);
+      text-shadow: none;
       transition: color 0.2s ease;
     }
 
@@ -331,18 +389,19 @@
       width: 100%;
       text-align: left;
       margin-bottom: 10px;
-      border: 1px solid rgba(196, 181, 253, 0.42);
-      background: linear-gradient(120deg, rgba(76, 29, 149, 0.36), rgba(30, 64, 175, 0.34));
-      color: #e9ddff;
-      text-shadow: 0 0 10px rgba(196, 181, 253, 0.2);
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: rgba(15, 23, 42, 0.82);
+      color: #e6eef9;
+      text-shadow: none;
       font-weight: 600;
+      line-height: 1.36;
     }
 
     .question-box .option-btn:hover {
-      border-color: rgba(251, 146, 60, 0.6);
-      background: linear-gradient(120deg, rgba(124, 58, 237, 0.5), rgba(234, 88, 12, 0.34));
-      color: #fff1d6;
-      box-shadow: 0 10px 22px rgba(124, 58, 237, 0.24), 0 0 14px rgba(251, 146, 60, 0.18);
+      border-color: rgba(14, 165, 233, 0.62);
+      background: rgba(14, 165, 233, 0.14);
+      color: #f8fbff;
+      box-shadow: 0 10px 22px rgba(14, 165, 233, 0.14);
     }
 
     .question-box.is-active {
@@ -351,9 +410,9 @@
     }
 
     .question-box.is-active .question-text {
-      color: #9bf7ff;
-      border-color: rgba(217, 70, 239, 0.55);
-      box-shadow: inset 0 0 16px rgba(56, 189, 248, 0.14), 0 0 14px rgba(217, 70, 239, 0.2);
+      color: #f8fbff;
+      border-color: rgba(14, 165, 233, 0.52);
+      box-shadow: inset 3px 0 0 rgba(14, 165, 233, 0.8);
     }
 
     .status {
@@ -373,6 +432,9 @@
     }
 
     .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
       border: 1px solid var(--line);
       border-radius: 999px;
       background: rgba(148, 163, 184, 0.12);
@@ -380,6 +442,15 @@
       font-size: 0.81rem;
       font-weight: 600;
       color: #d9e3f2;
+    }
+
+    .metric::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: currentColor;
+      box-shadow: 0 0 0 3px rgba(148, 163, 184, 0.16);
     }
 
     .pill.success {
@@ -452,6 +523,7 @@
       margin-top: 9px;
       display: flex;
       gap: 8px;
+      justify-content: flex-end;
     }
 
     .mini-btn {
@@ -475,7 +547,7 @@
     .option-btn.correct,
     .option-btn.correct:disabled {
       border: 1px solid rgba(16, 185, 129, 0.64);
-      background: rgba(16, 185, 129, 0.18);
+      background: rgba(16, 185, 129, 0.16);
       color: #bbf7d0;
       box-shadow: 0 8px 18px rgba(16, 185, 129, 0.16);
     }
@@ -492,7 +564,7 @@
       border: 1px solid var(--line);
       border-radius: var(--radius);
       padding: 14px;
-      background: rgba(13, 22, 41, 0.72);
+      background: rgba(13, 22, 41, 0.58);
       display: grid;
       gap: 9px;
     }
@@ -525,7 +597,7 @@
       padding: 10px 12px;
       border-radius: 10px;
       border: 1px solid rgba(248, 113, 113, 0.3);
-      background: rgba(248, 113, 113, 0.08);
+      background: rgba(248, 113, 113, 0.07);
     }
 
     .error-text {
@@ -575,7 +647,7 @@
       width: min(520px, 100%);
       border: 1px solid var(--line-strong);
       border-radius: 16px;
-      background: linear-gradient(180deg, #13213b, #0f1a2f);
+      background: linear-gradient(180deg, #15243f, #0f1a2f);
       box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
       padding: 18px;
     }
@@ -612,6 +684,22 @@
       border-color: rgba(16, 185, 129, 0.45);
       background: rgba(16, 185, 129, 0.16);
       color: #bbf7d0;
+    }
+
+    .correct-answer-label {
+      display: inline-flex;
+      align-items: center;
+      justify-content: flex-start;
+      gap: 7px;
+      margin-bottom: 0;
+      font-size: 0.84rem;
+    }
+
+    .correct-answer-label input[type="radio"] {
+      width: 16px;
+      min-height: 16px;
+      padding: 0;
+      accent-color: var(--accent);
     }
 
     .questions-list,
@@ -661,6 +749,10 @@
         min-height: 36px;
         writing-mode: horizontal-tb;
         transform: none;
+      }
+
+      .game-topbar {
+        grid-template-columns: 1fr;
       }
 
       .row[style*="space-between"] {
@@ -722,15 +814,15 @@
       </div>
     </section>
 
-    <section class="card">
+    <section class="card game-card">
       <h1>Jugar</h1>
       <div class="game-area">
-        <div class="row" style="justify-content: space-between;">
+        <div class="game-topbar">
           <div class="status"><span class="dot"></span><span id="estadoJuego">Esperando…</span></div>
           <div class="row stats">
-            <div class="pill success" id="correctas">✅ 0</div>
-            <div class="pill danger" id="incorrectas">❌ 0</div>
-            <div class="pill info" id="efectividad">Efectividad: 0%</div>
+            <div class="pill success metric" id="correctas">0</div>
+            <div class="pill danger metric" id="incorrectas">0</div>
+            <div class="pill info metric" id="efectividad">Efectividad: 0%</div>
             <div class="pill" id="contador">0/0</div>
             <button id="startBtn" class="ghost-btn" type="button">Empezar juego</button>
           </div>
@@ -742,10 +834,10 @@
         <div class="errores-panel" id="erroresContainer">
           <div class="errores-header">
             <h3 class="errores-title">Preguntas respondidas incorrectamente</h3>
-            <div class="pill danger errores-count" id="erroresContador">0 errores</div>
+            <div class="pill danger metric errores-count" id="erroresContador">0 errores</div>
           </div>
           <div id="erroresLista" class="errores-list">
-            <p class="chip">Aún no hay respuestas incorrectas.</p>
+            <p class="empty-state">Aún no hay respuestas incorrectas.</p>
           </div>
         </div>
         <div id="detalleModal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitulo" aria-describedby="modalPregunta">
@@ -890,7 +982,7 @@
       renderMateriaInfo();
       listaPreguntas.innerHTML = '';
       if (!preguntas.length) {
-        listaPreguntas.innerHTML = '<p class="chip">No hay preguntas guardadas.</p>';
+        listaPreguntas.innerHTML = '<p class="empty-state">No hay preguntas guardadas.</p>';
         return;
       }
       preguntas.forEach((p, idx) => {
@@ -1012,7 +1104,7 @@
           <label>Opción ${i + 1} ${i === 0 ? '(correcta por defecto)' : ''}</label>
           <div class="two-col">
             <input type="text" data-opcion="${i}" placeholder="Texto de la opción" value="${valor}" />
-            <label style="display:flex;align-items:center;gap:6px;font-size:13px;">
+            <label class="correct-answer-label">
               <input type="radio" name="correcta" value="${i}" ${checked || (i === 0 && !valores.length ? 'checked' : '')} />
               Correcta
             </label>
@@ -1226,8 +1318,8 @@
     function actualizarStats() {
       const totalIntentos = correctas + incorrectas;
       const efectividad = totalIntentos ? Math.round((correctas / totalIntentos) * 100) : 0;
-      correctasEl.textContent = `✅ ${correctas}`;
-      incorrectasEl.textContent = `❌ ${incorrectas}`;
+      correctasEl.textContent = `${correctas}`;
+      incorrectasEl.textContent = `${incorrectas}`;
       efectividadEl.textContent = `Efectividad: ${efectividad}%`;
       efectividadEl.classList.remove('info', 'eff-high', 'eff-mid', 'eff-low', 'eff-bad');
       if (efectividad >= 90) {
@@ -1293,7 +1385,7 @@
       erroresLista.innerHTML = '';
       const entradas = Object.entries(erroresPregunta);
       if (!entradas.length) {
-        erroresLista.innerHTML = '<p class="chip">Aún no hay respuestas incorrectas.</p>';
+        erroresLista.innerHTML = '<p class="empty-state">Aún no hay respuestas incorrectas.</p>';
         erroresContador.textContent = '0 errores';
         return;
       }
