@@ -258,6 +258,27 @@
       box-shadow: 0 8px 18px rgba(2, 6, 23, 0.22);
     }
 
+    .file-btn {
+      width: 100%;
+      min-height: 42px;
+      padding: 10px 12px;
+      border-radius: 9px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      color: var(--text);
+      font-size: 0.94rem;
+      font-weight: 700;
+      letter-spacing: 0.2px;
+      cursor: pointer;
+      transition: border-color 0.16s ease, box-shadow 0.16s ease, background-color 0.16s ease, transform 0.08s ease;
+    }
+
+    .file-btn:hover {
+      transform: translateY(-1px);
+    }
+
     .danger-btn {
       border-color: rgba(248, 113, 113, 0.42);
       background: linear-gradient(135deg, #ef4444, #f97316);
@@ -523,6 +544,17 @@
       gap: 10px;
     }
 
+    .materia-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .file-input {
+      display: none;
+    }
+
     .item-actions {
       margin-top: 9px;
       display: flex;
@@ -741,7 +773,8 @@
       }
 
       .two-col,
-      .materia-row {
+      .materia-row,
+      .materia-actions {
         grid-template-columns: 1fr;
       }
 
@@ -788,6 +821,11 @@
           <select id="materiaSelect"></select>
           <button id="addMateriaBtn" type="button" class="ghost-btn">Agregar otra materia</button>
         </div>
+        <div class="materia-actions">
+          <button id="exportMateriaBtn" type="button" class="ghost-btn">Exportar materia</button>
+          <label id="importMateriaBtn" for="importMateriaInput" class="ghost-btn file-btn">Importar materia</label>
+        </div>
+        <input id="importMateriaInput" class="file-input" type="file" accept="application/json,.json" />
       </div>
       <div class="field" id="nuevaMateriaField" style="display:none;">
         <label for="materiaNombre">Nueva materia</label>
@@ -861,6 +899,9 @@
   <script>
     const materiaSelect = document.getElementById('materiaSelect');
     const addMateriaBtn = document.getElementById('addMateriaBtn');
+    const exportMateriaBtn = document.getElementById('exportMateriaBtn');
+    const importMateriaBtn = document.getElementById('importMateriaBtn');
+    const importMateriaInput = document.getElementById('importMateriaInput');
     const nuevaMateriaField = document.getElementById('nuevaMateriaField');
     const materiaNombreInput = document.getElementById('materiaNombre');
     const guardarMateriaBtn = document.getElementById('guardarMateriaBtn');
@@ -991,6 +1032,152 @@
       materiaInfo.appendChild(chip);
     }
 
+    function limpiarNombreArchivo(nombre) {
+      return String(nombre || 'materia')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .toLowerCase() || 'materia';
+    }
+
+    function clonarPreguntas(lista) {
+      return lista.map((pregunta) => ({
+        texto: String(pregunta.texto || '').trim(),
+        opciones: pregunta.opciones.map((opcion) => String(opcion || '').trim()),
+        correcta: Number(pregunta.correcta),
+      }));
+    }
+
+    function validarPreguntasImportadas(lista) {
+      if (!Array.isArray(lista)) return null;
+      const normalizadas = [];
+      for (const pregunta of lista) {
+        if (!pregunta || typeof pregunta !== 'object') return null;
+        const texto = String(pregunta.texto || '').trim();
+        const opciones = Array.isArray(pregunta.opciones)
+          ? pregunta.opciones.map((opcion) => String(opcion || '').trim())
+          : [];
+        const correcta = Number(pregunta.correcta);
+        if (!texto || opciones.length < 2 || opciones.length > 6) return null;
+        if (opciones.some((opcion) => !opcion)) return null;
+        if (!Number.isInteger(correcta) || correcta < 0 || correcta >= opciones.length) return null;
+        normalizadas.push({ texto, opciones, correcta });
+      }
+      return normalizadas;
+    }
+
+    function obtenerPreguntasDesdeImportacion(data) {
+      if (Array.isArray(data)) return validarPreguntasImportadas(data);
+      if (!data || typeof data !== 'object') return null;
+      if (data.tipo === 'quiz-multi-choice-materia' && Array.isArray(data.preguntas)) {
+        return validarPreguntasImportadas(data.preguntas);
+      }
+      if (data.materia && Array.isArray(data.materia.preguntas)) {
+        return validarPreguntasImportadas(data.materia.preguntas);
+      }
+      if (Array.isArray(data.preguntas)) {
+        return validarPreguntasImportadas(data.preguntas);
+      }
+      return null;
+    }
+
+    function reiniciarJuegoDespuesDeCambio(mensajePregunta = 'Agrega preguntas y presiona "Empezar juego"') {
+      totalPreguntas = preguntas.length;
+      completadas = new Set();
+      pendientes = [];
+      ordenPreguntas = [];
+      indiceActual = 0;
+      preguntaEditando = null;
+      correctas = 0;
+      incorrectas = 0;
+      addQuestionBtn.textContent = 'Agregar pregunta';
+      preguntaInput.value = '';
+      construirCamposOpciones();
+      estadoJuego.textContent = 'Esperandoâ€¦';
+      textoPregunta.textContent = mensajePregunta;
+      opcionesJuego.innerHTML = '';
+      contador.textContent = `${completadas.size}/${totalPreguntas || 0}`;
+      actualizarStats();
+      reiniciarErrores();
+      setPreguntaActiva(false);
+    }
+
+    function exportarMateriaActual() {
+      const materia = obtenerMateriaActual();
+      if (!materia || !materia.nombre) {
+        mostrarMensaje('Selecciona una materia para exportar', 'error');
+        return;
+      }
+      const seguro = confirm(`seguro que desea exportar ${materia.nombre}`);
+      if (!seguro) return;
+      const payload = {
+        tipo: 'quiz-multi-choice-materia',
+        version: 1,
+        materia: {
+          nombre: materia.nombre,
+        },
+        preguntas: clonarPreguntas(materia.preguntas || []),
+      };
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `${limpiarNombreArchivo(materia.nombre)}-preguntas.json`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      mostrarMensaje('Materia exportada');
+    }
+
+    function importarMateriaActual(e) {
+      const materia = obtenerMateriaActual();
+      if (!materia || !materia.nombre) {
+        e.preventDefault();
+        mostrarMensaje('Crea o selecciona una materia vacia para importar', 'error');
+        return;
+      }
+      if ((materia.preguntas || []).length > 0) {
+        e.preventDefault();
+        mostrarMensaje('Solo se puede importar en una materia sin preguntas guardadas', 'error');
+        return;
+      }
+      importMateriaInput.value = '';
+    }
+
+    function procesarArchivoImportado(file) {
+      const materia = obtenerMateriaActual();
+      if (!file || !materia) return;
+      if ((materia.preguntas || []).length > 0) {
+        mostrarMensaje('Solo se puede importar en una materia sin preguntas guardadas', 'error');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const data = JSON.parse(String(reader.result || ''));
+          const importadas = obtenerPreguntasDesdeImportacion(data);
+          if (!importadas) {
+            mostrarMensaje('El archivo no tiene preguntas validas', 'error');
+            return;
+          }
+          materia.preguntas = importadas;
+          preguntas = materia.preguntas;
+          reiniciarJuegoDespuesDeCambio();
+          guardar();
+          renderMateriaSelect();
+          renderLista();
+          renderMateriaInfo();
+          mostrarMensaje(`Se importaron ${importadas.length} preguntas`);
+        } catch (error) {
+          mostrarMensaje('No se pudo leer el archivo JSON', 'error');
+        }
+      };
+      reader.onerror = () => mostrarMensaje('No se pudo abrir el archivo', 'error');
+      reader.readAsText(file);
+    }
+
     function renderLista() {
       renderMateriaInfo();
       listaPreguntas.innerHTML = '';
@@ -1061,7 +1248,7 @@
       construirCamposOpciones();
       contador.textContent = `${completadas.size}/${totalPreguntas || 0}`;
       actualizarStats();
-      estadoJuego.textContent = 'Esperando…';
+      estadoJuego.textContent = 'Esperando...';
       textoPregunta.textContent = materia ? 'Agrega preguntas y presiona "Empezar juego"' : 'Crea o selecciona una materia para empezar.';
       opcionesJuego.innerHTML = '';
       setPreguntaActiva(false);
@@ -1448,6 +1635,9 @@
     addQuestionBtn.addEventListener('click', validarPregunta);
     startBtn.addEventListener('click', iniciarJuego);
     clearBtn.addEventListener('click', confirmarBorrado);
+    exportMateriaBtn.addEventListener('click', exportarMateriaActual);
+    importMateriaBtn.addEventListener('click', importarMateriaActual);
+    importMateriaInput.addEventListener('change', (e) => procesarArchivoImportado(e.target.files?.[0]));
     materiaSelect.addEventListener('change', (e) => seleccionarMateria(e.target.value));
     addMateriaBtn.addEventListener('click', toggleNuevaMateria);
     guardarMateriaBtn.addEventListener('click', crearNuevaMateria);
