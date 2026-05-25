@@ -989,18 +989,23 @@
     function cargar() {
       const data = localStorage.getItem(STORAGE_KEY);
       if (data) {
-        const parsed = JSON.parse(data);
-        if (Array.isArray(parsed.materias)) {
-          materias = parsed.materias;
-          materiaActualId = parsed.materiaActualId || parsed.materiaActual || '';
-        } else {
-          const legacyMateria = parsed.materia || '';
-          materias = [{ id: `mat-${Date.now()}`, nombre: legacyMateria, preguntas: parsed.preguntas || [] }];
-          materiaActualId = materias[0].id;
+        try {
+          const parsed = JSON.parse(data);
+          if (Array.isArray(parsed.materias)) {
+            materias = parsed.materias;
+            materiaActualId = parsed.materiaActualId || parsed.materiaActual || '';
+          } else {
+            const legacyMateria = parsed.materia || '';
+            materias = [{ id: `mat-${Date.now()}`, nombre: legacyMateria, preguntas: parsed.preguntas || [] }];
+            materiaActualId = materias[0].id;
+          }
+        } catch (error) {
+          materias = [];
+          materiaActualId = '';
         }
       }
       renderMateriaSelect();
-      seleccionarMateria(materiaActualId || materias[0]?.id || '');
+      seleccionarMateria(materiaActualId || materias[0]?.id || '', false);
       renderLista();
       renderMateriaInfo();
     }
@@ -1233,7 +1238,7 @@
       return materias.find((m) => m.id === materiaActualId);
     }
 
-    function seleccionarMateria(id) {
+    function seleccionarMateria(id, guardarCambio = true) {
       materiaActualId = id;
       const materia = obtenerMateriaActual();
       preguntas = materia ? materia.preguntas : [];
@@ -1255,7 +1260,7 @@
       renderMateriaSelect();
       renderLista();
       renderMateriaInfo();
-      guardar();
+      if (guardarCambio) guardar();
       reiniciarErrores();
     }
 
