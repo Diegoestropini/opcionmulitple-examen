@@ -246,6 +246,57 @@
       box-shadow: 0 12px 28px rgba(251, 191, 36, 0.3);
     }
 
+    .continuity-control {
+      display: flex;
+      justify-content: flex-end;
+      margin: -4px 0 2px;
+    }
+
+    .continuity-toggle {
+      width: auto;
+      min-height: 38px;
+      display: inline-flex;
+      align-items: center;
+      gap: 9px;
+      padding: 7px 11px;
+      border-color: rgba(148, 163, 184, 0.3);
+      background: rgba(148, 163, 184, 0.08);
+      color: var(--muted);
+      box-shadow: none;
+    }
+
+    .continuity-toggle .switch-track {
+      width: 36px;
+      height: 20px;
+      padding: 2px;
+      border-radius: 999px;
+      background: rgba(148, 163, 184, 0.34);
+      transition: background-color 0.18s ease;
+    }
+
+    .continuity-toggle .switch-knob {
+      display: block;
+      width: 16px;
+      height: 16px;
+      border-radius: 50%;
+      background: #e5ecf6;
+      transition: transform 0.18s ease;
+    }
+
+    .continuity-toggle.is-on {
+      border-color: rgba(34, 197, 94, 0.48);
+      background: rgba(34, 197, 94, 0.13);
+      color: #bbf7d0;
+    }
+
+    .continuity-toggle.is-on .switch-track {
+      background: rgba(34, 197, 94, 0.72);
+    }
+
+    .continuity-toggle.is-on .switch-knob {
+      transform: translateX(16px);
+    }
+
     .ghost-btn {
       border-color: rgba(148, 163, 184, 0.28);
       background: rgba(148, 163, 184, 0.08);
@@ -613,6 +664,36 @@
       gap: 8px;
     }
 
+    .errores-actions {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    #practiceBtn:disabled {
+      cursor: not-allowed;
+      opacity: 0.46;
+      transform: none;
+    }
+
+    .practice-banner {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 11px 13px;
+      border: 1px solid rgba(250, 204, 21, 0.4);
+      border-radius: 10px;
+      background: rgba(250, 204, 21, 0.1);
+      color: #fef08a;
+      font-size: 0.88rem;
+    }
+
+    .practice-banner.is-visible {
+      display: flex;
+    }
+
     .errores-title {
       margin: 0;
       font-size: 0.98rem;
@@ -804,6 +885,15 @@
       #startBtn {
         width: 100%;
       }
+
+      .continuity-control {
+        justify-content: flex-start;
+      }
+
+      .practice-banner {
+        align-items: stretch;
+        flex-direction: column;
+      }
     }
   </style>
 </head>
@@ -859,6 +949,12 @@
     <section class="card game-card">
       <h1>Jugar</h1>
       <div class="game-area">
+        <div class="continuity-control">
+          <button id="continuityBtn" class="continuity-toggle" type="button" role="switch" aria-checked="false" title="Conserva el progreso de esta partida aunque cierres la aplicación o apagues el equipo">
+            <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+            <span id="continuityLabel">Mantener partida: desactivado</span>
+          </button>
+        </div>
         <div class="game-topbar">
           <div class="status"><span class="dot"></span><span id="estadoJuego">Esperando…</span></div>
           <div class="row stats">
@@ -869,6 +965,10 @@
             <button id="startBtn" class="ghost-btn" type="button">Empezar juego</button>
           </div>
         </div>
+        <div id="practiceBanner" class="practice-banner">
+          <span>Modo práctica: tus avances del juego principal están en pausa.</span>
+          <button id="returnGameBtn" type="button" class="ghost-btn mini-btn">Volver al juego</button>
+        </div>
         <div class="question-box" id="questionBox">
           <div class="question-text" id="textoPregunta">Agrega preguntas y presiona "Empezar juego"</div>
           <div id="opcionesJuego"></div>
@@ -876,7 +976,10 @@
         <div class="errores-panel" id="erroresContainer">
           <div class="errores-header">
             <h3 class="errores-title">Preguntas respondidas incorrectamente</h3>
-            <div class="pill danger metric errores-count" id="erroresContador">0 errores</div>
+            <div class="errores-actions">
+              <button id="practiceBtn" type="button" class="ghost-btn mini-btn" disabled>Practicar errores</button>
+              <div class="pill danger metric errores-count" id="erroresContador">0 errores</div>
+            </div>
           </div>
           <div id="erroresLista" class="errores-list">
             <p class="empty-state">Aún no hay respuestas incorrectas.</p>
@@ -934,6 +1037,11 @@
     const modalPregunta = document.getElementById('modalPregunta');
     const modalOpciones = document.getElementById('modalOpciones');
     const cerrarModalBtn = document.getElementById('cerrarModalBtn');
+    const continuityBtn = document.getElementById('continuityBtn');
+    const continuityLabel = document.getElementById('continuityLabel');
+    const practiceBtn = document.getElementById('practiceBtn');
+    const practiceBanner = document.getElementById('practiceBanner');
+    const returnGameBtn = document.getElementById('returnGameBtn');
 
     let materias = [];
     let materiaActualId = '';
@@ -948,8 +1056,171 @@
     let incorrectas = 0;
     let erroresPregunta = {};
     let ordenErrorCronologico = 0;
+    let ordenOpcionesActual = [];
+    let mantenerPartida = false;
+    let modoPractica = false;
+    let estadoJuegoPrincipal = null;
+    let practicaOrden = [];
+    let practicaPendientes = [];
+    let practicaIndice = 0;
+    let practicaCompletadas = new Set();
+    let timerAvance = null;
+    let colaPersistencia = Promise.resolve();
 
     const STORAGE_KEY = 'quiz-multi-choice';
+    const GAME_DB_NAME = 'quiz-partida-persistente';
+    const GAME_DB_STORE = 'estado';
+    const GAME_STATE_KEY = 'partida-activa';
+
+    function abrirBasePartida() {
+      return new Promise((resolve, reject) => {
+        if (!('indexedDB' in window)) {
+          reject(new Error('IndexedDB no disponible'));
+          return;
+        }
+        const request = indexedDB.open(GAME_DB_NAME, 1);
+        request.onupgradeneeded = () => {
+          if (!request.result.objectStoreNames.contains(GAME_DB_STORE)) {
+            request.result.createObjectStore(GAME_DB_STORE);
+          }
+        };
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+      });
+    }
+
+    async function operarBasePartida(tipo, valor) {
+      const db = await abrirBasePartida();
+      return new Promise((resolve, reject) => {
+        const tx = db.transaction(GAME_DB_STORE, tipo === 'leer' ? 'readonly' : 'readwrite');
+        const store = tx.objectStore(GAME_DB_STORE);
+        const request = tipo === 'leer'
+          ? store.get(GAME_STATE_KEY)
+          : tipo === 'borrar'
+            ? store.delete(GAME_STATE_KEY)
+            : store.put(valor, GAME_STATE_KEY);
+        request.onsuccess = () => resolve(request.result);
+        request.onerror = () => reject(request.error);
+        tx.oncomplete = () => db.close();
+        tx.onerror = () => db.close();
+      });
+    }
+
+    function firmaPreguntasActuales() {
+      return JSON.stringify(preguntas.map((p) => [p.texto, p.opciones, p.correcta]));
+    }
+
+    function capturarEstadoBase() {
+      return {
+        ordenPreguntas: [...ordenPreguntas],
+        pendientes: [...pendientes],
+        indiceActual,
+        totalPreguntas,
+        completadas: [...completadas],
+        correctas,
+        incorrectas,
+        erroresPregunta: structuredClone(erroresPregunta),
+        ordenErrorCronologico,
+        ordenOpcionesActual: [...ordenOpcionesActual],
+        estadoTexto: estadoJuego.textContent,
+        preguntaActiva: questionBox?.classList.contains('is-active') || false,
+      };
+    }
+
+    function crearRegistroPartida() {
+      return {
+        version: 1,
+        materiaActualId,
+        firmaPreguntas: firmaPreguntasActuales(),
+        guardadoEn: Date.now(),
+        modoPractica,
+        juego: capturarEstadoBase(),
+        estadoJuegoPrincipal: estadoJuegoPrincipal ? structuredClone(estadoJuegoPrincipal) : null,
+        practica: {
+          orden: [...practicaOrden],
+          pendientes: [...practicaPendientes],
+          indice: practicaIndice,
+          completadas: [...practicaCompletadas],
+        },
+      };
+    }
+
+    function guardarPartidaPersistente() {
+      if (!mantenerPartida) return;
+      const registro = crearRegistroPartida();
+      colaPersistencia = colaPersistencia
+        .then(() => operarBasePartida('guardar', registro))
+        .catch(() => {});
+    }
+
+    function actualizarBotonContinuidad() {
+      continuityBtn.classList.toggle('is-on', mantenerPartida);
+      continuityBtn.setAttribute('aria-checked', String(mantenerPartida));
+      continuityLabel.textContent = `Mantener partida: ${mantenerPartida ? 'activado' : 'desactivado'}`;
+    }
+
+    function aplicarEstadoBase(estado) {
+      ordenPreguntas = Array.isArray(estado.ordenPreguntas) ? [...estado.ordenPreguntas] : [];
+      pendientes = Array.isArray(estado.pendientes) ? [...estado.pendientes] : [];
+      indiceActual = Number.isInteger(estado.indiceActual) ? estado.indiceActual : 0;
+      totalPreguntas = Number.isInteger(estado.totalPreguntas) ? estado.totalPreguntas : preguntas.length;
+      completadas = new Set(Array.isArray(estado.completadas) ? estado.completadas : []);
+      correctas = Number(estado.correctas) || 0;
+      incorrectas = Number(estado.incorrectas) || 0;
+      erroresPregunta = estado.erroresPregunta && typeof estado.erroresPregunta === 'object'
+        ? structuredClone(estado.erroresPregunta)
+        : {};
+      ordenErrorCronologico = Number(estado.ordenErrorCronologico) || 0;
+      ordenOpcionesActual = Array.isArray(estado.ordenOpcionesActual) ? [...estado.ordenOpcionesActual] : [];
+      estadoJuego.textContent = estado.estadoTexto || 'En progreso';
+      actualizarStats();
+      renderErrores();
+    }
+
+    async function restaurarPartidaPersistente() {
+      try {
+        const registro = await operarBasePartida('leer');
+        if (!registro?.materiaActualId || !registro?.juego) return;
+        if (registro.materiaActualId !== materiaActualId) {
+          if (!materias.some((m) => m.id === registro.materiaActualId)) return;
+          seleccionarMateria(registro.materiaActualId, false);
+        }
+        if (registro.firmaPreguntas !== firmaPreguntasActuales()) return;
+
+        mantenerPartida = true;
+        actualizarBotonContinuidad();
+        aplicarEstadoBase(registro.juego);
+        modoPractica = Boolean(registro.modoPractica && registro.estadoJuegoPrincipal);
+        estadoJuegoPrincipal = registro.estadoJuegoPrincipal ? structuredClone(registro.estadoJuegoPrincipal) : null;
+        practicaOrden = Array.isArray(registro.practica?.orden) ? [...registro.practica.orden] : [];
+        practicaPendientes = Array.isArray(registro.practica?.pendientes) ? [...registro.practica.pendientes] : [];
+        practicaIndice = Number.isInteger(registro.practica?.indice) ? registro.practica.indice : 0;
+        practicaCompletadas = new Set(Array.isArray(registro.practica?.completadas) ? registro.practica.completadas : []);
+        practiceBanner.classList.toggle('is-visible', modoPractica);
+        practiceBtn.disabled = modoPractica || !Object.keys(erroresPregunta).length;
+        setCreatorCollapsed(true);
+        if (modoPractica) {
+          mostrarPreguntaPractica(true);
+        } else {
+          mostrarPreguntaActual(true);
+        }
+      } catch (error) {
+        mantenerPartida = false;
+        actualizarBotonContinuidad();
+      }
+    }
+
+    function alternarContinuidad() {
+      mantenerPartida = !mantenerPartida;
+      actualizarBotonContinuidad();
+      if (mantenerPartida) {
+        guardarPartidaPersistente();
+      } else {
+        colaPersistencia = colaPersistencia
+          .then(() => operarBasePartida('borrar'))
+          .catch(() => {});
+      }
+    }
 
     function setCreatorCollapsed(collapsed) {
       const isCollapsed = Boolean(collapsed);
@@ -1239,6 +1510,15 @@
     }
 
     function seleccionarMateria(id, guardarCambio = true) {
+      clearTimeout(timerAvance);
+      modoPractica = false;
+      estadoJuegoPrincipal = null;
+      practicaOrden = [];
+      practicaPendientes = [];
+      practicaIndice = 0;
+      practicaCompletadas = new Set();
+      ordenOpcionesActual = [];
+      practiceBanner.classList.remove('is-visible');
       materiaActualId = id;
       const materia = obtenerMateriaActual();
       preguntas = materia ? materia.preguntas : [];
@@ -1262,6 +1542,7 @@
       renderMateriaInfo();
       if (guardarCambio) guardar();
       reiniciarErrores();
+      guardarPartidaPersistente();
     }
 
     function toggleNuevaMateria() {
@@ -1373,6 +1654,7 @@
     }
 
     function iniciarJuego() {
+      clearTimeout(timerAvance);
       if (!materiaActualId) {
         estadoJuego.textContent = 'Selecciona una materia';
         return;
@@ -1389,20 +1671,30 @@
       contador.textContent = `${completadas.size}/${totalPreguntas}`;
       correctas = 0;
       incorrectas = 0;
+      ordenOpcionesActual = [];
+      modoPractica = false;
+      estadoJuegoPrincipal = null;
+      practiceBanner.classList.remove('is-visible');
       reiniciarErrores();
       actualizarStats();
       estadoJuego.textContent = 'En progreso';
       setCreatorCollapsed(true);
       setPreguntaActiva(true);
       mostrarPreguntaActual();
+      guardarPartidaPersistente();
     }
 
-    function mostrarPreguntaActual() {
+    function mostrarPreguntaActual(conservarOrdenOpciones = false) {
+      if (modoPractica) {
+        mostrarPreguntaPractica(conservarOrdenOpciones);
+        return;
+      }
       if (!ordenPreguntas.length) {
         textoPregunta.textContent = 'Agrega preguntas y presiona "Empezar juego"';
         opcionesJuego.innerHTML = '';
         contador.textContent = `${completadas.size}/${totalPreguntas || preguntas.length || 0}`;
         setPreguntaActiva(false);
+        guardarPartidaPersistente();
         return;
       }
       if (indiceActual >= ordenPreguntas.length) {
@@ -1417,6 +1709,8 @@
           contador.textContent = `${completadas.size}/${totalPreguntas}`;
           actualizarStats();
           setPreguntaActiva(false);
+          ordenOpcionesActual = [];
+          guardarPartidaPersistente();
           return;
         }
       }
@@ -1426,8 +1720,12 @@
       textoPregunta.textContent = pregunta.texto;
       contador.textContent = `${completadas.size}/${totalPreguntas}`;
       opcionesJuego.innerHTML = '';
-      const ordenOpciones = barajar(pregunta.opciones.map((_, i) => i));
-      ordenOpciones.forEach((optIndex) => {
+      const indicesOpciones = pregunta.opciones.map((_, i) => i);
+      const ordenValido = conservarOrdenOpciones
+        && ordenOpcionesActual.length === indicesOpciones.length
+        && ordenOpcionesActual.every((idx) => indicesOpciones.includes(idx));
+      ordenOpcionesActual = ordenValido ? [...ordenOpcionesActual] : barajar(indicesOpciones);
+      ordenOpcionesActual.forEach((optIndex) => {
         const btn = document.createElement('button');
         btn.className = 'option-btn';
         btn.textContent = pregunta.opciones[optIndex];
@@ -1438,6 +1736,10 @@
     }
 
     function validarRespuesta(esCorrecta, btn) {
+      if (modoPractica) {
+        validarRespuestaPractica(esCorrecta, btn);
+        return;
+      }
       const botones = Array.from(opcionesJuego.querySelectorAll('button'));
       botones.forEach((b) => { b.disabled = true; });
       const correctaBtn = botones.find((b) => b.dataset.esCorrecta === 'true');
@@ -1460,10 +1762,119 @@
 
       contador.textContent = `${completadas.size}/${totalPreguntas}`;
       actualizarStats();
-      setTimeout(() => {
-        indiceActual += 1;
+      indiceActual += 1;
+      ordenOpcionesActual = [];
+      guardarPartidaPersistente();
+      clearTimeout(timerAvance);
+      timerAvance = setTimeout(() => {
         mostrarPreguntaActual();
       }, 900);
+    }
+
+    function iniciarPractica() {
+      const indicesErrores = Object.keys(erroresPregunta)
+        .map(Number)
+        .filter((idx) => Number.isInteger(idx) && preguntas[idx]);
+      if (!indicesErrores.length || modoPractica) return;
+
+      clearTimeout(timerAvance);
+      estadoJuegoPrincipal = capturarEstadoBase();
+      modoPractica = true;
+      practicaOrden = barajar(indicesErrores);
+      practicaPendientes = [];
+      practicaIndice = 0;
+      practicaCompletadas = new Set();
+      ordenOpcionesActual = [];
+      practiceBanner.classList.add('is-visible');
+      practiceBtn.disabled = true;
+      estadoJuego.textContent = 'Practicando errores';
+      setPreguntaActiva(true);
+      mostrarPreguntaPractica();
+      guardarPartidaPersistente();
+    }
+
+    function mostrarPreguntaPractica(conservarOrdenOpciones = false) {
+      if (!modoPractica) return;
+      if (practicaIndice >= practicaOrden.length) {
+        if (practicaPendientes.length) {
+          practicaOrden = [...practicaPendientes];
+          practicaPendientes = [];
+          practicaIndice = 0;
+        } else {
+          estadoJuego.textContent = 'Práctica completada';
+          textoPregunta.textContent = '¡Repasaste todas las preguntas incorrectas!';
+          opcionesJuego.innerHTML = '';
+          contador.textContent = `Práctica ${practicaCompletadas.size}/${practicaCompletadas.size}`;
+          ordenOpcionesActual = [];
+          setPreguntaActiva(false);
+          guardarPartidaPersistente();
+          return;
+        }
+      }
+
+      const preguntaIdx = practicaOrden[practicaIndice];
+      const pregunta = preguntas[preguntaIdx];
+      if (!pregunta) {
+        practicaIndice += 1;
+        mostrarPreguntaPractica();
+        return;
+      }
+      estadoJuego.textContent = 'Practicando errores';
+      textoPregunta.textContent = pregunta.texto;
+      contador.textContent = `Práctica ${practicaCompletadas.size}/${new Set([...practicaOrden, ...practicaPendientes, ...practicaCompletadas]).size}`;
+      opcionesJuego.innerHTML = '';
+      setPreguntaActiva(true);
+      const indicesOpciones = pregunta.opciones.map((_, i) => i);
+      const ordenValido = conservarOrdenOpciones
+        && ordenOpcionesActual.length === indicesOpciones.length
+        && ordenOpcionesActual.every((idx) => indicesOpciones.includes(idx));
+      ordenOpcionesActual = ordenValido ? [...ordenOpcionesActual] : barajar(indicesOpciones);
+      ordenOpcionesActual.forEach((optIndex) => {
+        const btn = document.createElement('button');
+        btn.className = 'option-btn';
+        btn.textContent = pregunta.opciones[optIndex];
+        btn.dataset.esCorrecta = optIndex === pregunta.correcta ? 'true' : 'false';
+        btn.onclick = () => validarRespuestaPractica(optIndex === pregunta.correcta, btn);
+        opcionesJuego.appendChild(btn);
+      });
+    }
+
+    function validarRespuestaPractica(esCorrecta, btn) {
+      const preguntaIdx = practicaOrden[practicaIndice];
+      const botones = Array.from(opcionesJuego.querySelectorAll('button'));
+      botones.forEach((boton) => { boton.disabled = true; });
+      const correctaBtn = botones.find((boton) => boton.dataset.esCorrecta === 'true');
+      if (esCorrecta) {
+        btn.classList.add('correct');
+        estadoJuego.textContent = '¡Correcto en práctica!';
+        practicaCompletadas.add(preguntaIdx);
+      } else {
+        btn.classList.add('incorrect');
+        if (correctaBtn) correctaBtn.classList.add('correct');
+        estadoJuego.textContent = 'Inténtalo otra vez en la próxima vuelta';
+        if (!practicaPendientes.includes(preguntaIdx)) practicaPendientes.push(preguntaIdx);
+      }
+      practicaIndice += 1;
+      ordenOpcionesActual = [];
+      guardarPartidaPersistente();
+      clearTimeout(timerAvance);
+      timerAvance = setTimeout(() => mostrarPreguntaPractica(), 900);
+    }
+
+    function volverAlJuego() {
+      if (!modoPractica || !estadoJuegoPrincipal) return;
+      clearTimeout(timerAvance);
+      const estadoRestaurar = structuredClone(estadoJuegoPrincipal);
+      modoPractica = false;
+      estadoJuegoPrincipal = null;
+      practicaOrden = [];
+      practicaPendientes = [];
+      practicaIndice = 0;
+      practicaCompletadas = new Set();
+      practiceBanner.classList.remove('is-visible');
+      aplicarEstadoBase(estadoRestaurar);
+      mostrarPreguntaActual(true);
+      guardarPartidaPersistente();
     }
 
     function confirmarBorrado() {
@@ -1607,11 +2018,13 @@
       if (!entradas.length) {
         erroresLista.innerHTML = '<p class="empty-state">Aún no hay respuestas incorrectas.</p>';
         erroresContador.textContent = '0 errores';
+        practiceBtn.disabled = true;
         return;
       }
 
       const totalErrores = entradas.reduce((acc, [, info]) => acc + info.conteo, 0);
       erroresContador.textContent = `${totalErrores} ${totalErrores === 1 ? 'error' : 'errores'}`;
+      practiceBtn.disabled = modoPractica;
 
       entradas
         .sort(([, a], [, b]) => b.ordenCronologico - a.ordenCronologico)
@@ -1642,6 +2055,9 @@
     opcionesCountInput.addEventListener('change', construirCamposOpciones);
     addQuestionBtn.addEventListener('click', validarPregunta);
     startBtn.addEventListener('click', iniciarJuego);
+    continuityBtn.addEventListener('click', alternarContinuidad);
+    practiceBtn.addEventListener('click', iniciarPractica);
+    returnGameBtn.addEventListener('click', volverAlJuego);
     clearBtn.addEventListener('click', confirmarBorrado);
     exportMateriaBtn.addEventListener('click', exportarMateriaActual);
     importMateriaBtn.addEventListener('click', importarMateriaActual);
@@ -1665,6 +2081,8 @@
 
     construirCamposOpciones();
     cargar();
+    actualizarBotonContinuidad();
+    restaurarPartidaPersistente();
   </script>
 </body>
 </html>
